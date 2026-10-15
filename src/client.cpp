@@ -38,7 +38,7 @@ void handleIncomingPackets(int serverFD) {
 
 int main(int argc, char** argv) {
 	if(argc != 3) return_error("Usage: ./client <ip_address> <port_number>");
-	int serverSocket, port_no, n;
+	int serverSocket, port_no;
 	struct sockaddr_in server_addr;
 	struct hostent *server;
 
@@ -86,16 +86,13 @@ int main(int argc, char** argv) {
 
 
 		if (GuiButton((Rectangle){ 230, 20, 50, 40 }, "Send")) {
-            if (messageBuffer[0] != '\0')
-            {
+            if (messageBuffer[0] != '\0') {
                 TraceLog(LOG_INFO, "Message: %s", messageBuffer);
-                // Process or send message here.
 				
 				size_t len = strlen(messageBuffer) + 1;
 				ssize_t sent = send(serverSocket, messageBuffer, len, 0);
-				if(sent < 0)
-					perror("send");
-                messageBuffer[0] = '\0'; // Clear input after sending
+				if(sent < 0) return_error("send error");
+                messageBuffer[0] = '\0';
             }
         }
 

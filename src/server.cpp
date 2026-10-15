@@ -83,7 +83,7 @@ void acceptClients(int serverSocket) {
 int main(int argc, char** argv) {
 	if(argc != 2) return_error("Usage: ./server <port_number>");
 
-	int serverSocket, port_no, n;
+	int serverSocket, port_no;
 	struct sockaddr_in server_addr;
 
 	serverSocket = socket(AF_INET, SOCK_STREAM, 0);
