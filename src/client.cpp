@@ -28,6 +28,7 @@ void handleIncomingPackets(int serverFD) {
 	while(true) {
 		ClientMessage msgPacket;
 		int res = recv(serverFD, &msgPacket, sizeof msgPacket, 0);
+		if(res == 0) return_error("server closed unexpectedly...");
 
 		// if(res != sizeof msgPacket) return_error("TODO: incomplete recieve size");
 
@@ -71,7 +72,7 @@ int main(int argc, char** argv) {
 	packetHandler.detach();
 
 	// rendering
-	InitWindow(800, 600, "Client Window");
+	InitWindow(300, 400, "Client Window");
 	SetTargetFPS(60);
 
 	char messageBuffer[256];
@@ -83,7 +84,7 @@ int main(int argc, char** argv) {
 
 		// handle sending of messages
 		if (GuiTextBox(
-			(Rectangle){ 20, 20, 600, 40 },
+			(Rectangle){ 20, 20, 200, 40 },
 			messageBuffer,
 			sizeof(messageBuffer),
 			editMode))
@@ -92,7 +93,7 @@ int main(int argc, char** argv) {
         }
 
 
-		if (GuiButton((Rectangle){ 640, 20, 100, 40 }, "Send")) {
+		if (GuiButton((Rectangle){ 230, 20, 50, 40 }, "Send")) {
             if (messageBuffer[0] != '\0')
             {
                 TraceLog(LOG_INFO, "Message: %s", messageBuffer);
@@ -106,16 +107,21 @@ int main(int argc, char** argv) {
             }
         }
 
-		// render the current texts
-		int y = 0;
-		for(auto msg : currentMessages) {
-			if(msg.clientID == clientID)
-				DrawText(TextFormat("[You] > %s", msg.message), 20, 100+y, 20, RED);
-			else
-				DrawText(TextFormat("[Client %d] > %s", msg.clientID, msg.message), 20, 100+y, 20, BLACK);
-			y += 25;
-		}
+		DrawText("Only renders the\n last 10 messages", 20, 70, 10, BLACK);
 
+		// Render the last 10 texts, newest first
+		int y = 0;
+
+		for (int i = 0; i < 10 && i < currentMessages.size(); ++i) {
+			const ClientMessage& msg = currentMessages[currentMessages.size() - 1 - i];
+
+			if (msg.clientID == clientID)
+				DrawText(TextFormat("[You] > %s", msg.message), 20, 100 + y, 15, RED);
+			else
+				DrawText(TextFormat("[Client %d] > %s", msg.clientID, msg.message), 20, 100 + y, 15, BLACK);
+
+			y += 20;
+		}
 		EndDrawing();
 	}
 	CloseWindow();

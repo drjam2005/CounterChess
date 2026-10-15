@@ -33,6 +33,7 @@ void processSingleClient(int clientFD, int clientID) {
 
         if(res == 0) {
             printf("Client %d disconnected.\n", clientID);
+			FDtoID[clientFD] = -1;
             break;
         }
 
@@ -50,6 +51,8 @@ void processSingleClient(int clientFD, int clientID) {
         for(auto FtI : FDtoID) {
             // if(FtI.first == clientFD)
             //     continue;
+			if(FtI.second == -1) continue; // disconnected client
+										   //
             ssize_t sent = send(FtI.first, &msgPacket, sizeof msgPacket, 0);
             if(sent < 0) return_error("send error...");
         }
