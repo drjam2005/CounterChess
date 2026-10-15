@@ -1,3 +1,5 @@
+#include <netinet/in.h>
+#include <strings.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -81,31 +83,21 @@ void acceptClients(int serverSocket) {
 int main(int argc, char** argv) {
 	if(argc != 2) return_error("Usage: ./server <port_number>");
 
-	struct addrinfo hints, *llist, *p;
-	memset(&hints, 0, sizeof hints);
-	hints.ai_family   = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_flags	  =	AI_PASSIVE;
+	int serverSocket, port_no, n;
+	struct sockaddr_in server_addr;
 
-	// validate port
-	int value = atoi(argv[1]);
-	if(value <= 1024) return_error("port number must be greater than 1024");
+	serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+	if(serverSocket < 0) return_error("socket error");
 
-	int res = getaddrinfo(NULL, argv[1], &hints, &llist);
-	if(res != 0) return_error("getaddrinfo error");
+	// bind to port
+	bzero((char*)&server_addr, sizeof server_addr);
+	port_no = atoi(argv[1]);
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_addr.s_addr = INADDR_ANY;
+	server_addr.sin_port = htons(port_no);
 
-	int serverSocket;
-	for(p = llist; p != NULL; p = p->ai_next) {
-		serverSocket = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-		if(serverSocket == -1) return_error("socket error");
-
-		int res = bind(serverSocket, p->ai_addr, p->ai_addrlen);
-		if(res == -1) return_error("bind error");
-
-		break;
-	}
-
-	if(p == NULL) return_error("no valid addresses found");
+	int res = bind(serverSocket, (struct sockaddr *)&server_addr, sizeof server_addr);
+	if (res == -1) return_error("bind error");
 
 	// listen on port
 	listen(serverSocket, 5);

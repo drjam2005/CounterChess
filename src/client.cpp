@@ -38,33 +38,25 @@ void handleIncomingPackets(int serverFD) {
 
 int main(int argc, char** argv) {
 	if(argc != 3) return_error("Usage: ./client <ip_address> <port_number>");
+	int serverSocket, port_no, n;
+	struct sockaddr_in server_addr;
+	struct hostent *server;
 
-	// try connecting
-	struct addrinfo hints, *llist, *p;
-	memset(&hints, 0, sizeof hints);
-	hints.ai_family   = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_flags	  =	AI_PASSIVE;
+	serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+	if(serverSocket < 0) return_error("socket error");
 
-	// validate port
-	int value = atoi(argv[2]);
-	if(value <= 1024) return_error("port number must be greater than 1024");
+	server = gethostbyname(argv[1]);
+	if(server == nullptr) return_error("gethostbyname error");
 
-	int res = getaddrinfo(argv[1], argv[2], &hints, &llist);
-	if(res != 0) return_error("getaddrinfo error");
+	port_no = atoi(argv[2]);
+	bzero((char*)&server_addr, sizeof server_addr);
+	server_addr.sin_family = AF_INET;
+	bcopy((char*)server->h_addr, (char*)&server_addr.sin_addr.s_addr, server->h_length);
 
-	int serverSocket;
-	for(p = llist; p != NULL; p = p->ai_next) {
-		serverSocket = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-		if(serverSocket == -1) return_error("socket error");
+	server_addr.sin_port = htons(port_no);
 
-		int res = connect(serverSocket, p->ai_addr, p->ai_addrlen);
-		if(res == -1) return_error("bind error");
-
-		break;
-	}
-
-	if(p == NULL) return_error("no valid addresses found");
+	int res = connect(serverSocket, (struct sockaddr*)&server_addr, sizeof(server_addr));
+	if(res == -1) return_error("bind error");
 
 	int clientID;
 	recv(serverSocket, &clientID, sizeof clientID, 0);
