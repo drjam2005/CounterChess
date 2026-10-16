@@ -3,23 +3,18 @@
 #define _PACKET_H
 
 #include <string>
+#include "game_state.h"
 
 enum PACKET_TYPE {
-	// to client
+	// from server
 	PACKET_NULL = 0,
 	PACKET_SEND_ID,
 	PACKET_SERVER_FULL,
-	PACKET_SEND_STATE,
+	PACKET_SEND_GAME_STATE,
 
 	// from client
 	PACKET_SEND_MOVE,
 
-};
-
-struct ClientMessage {
-	int clientFD;
-	int clientID;
-	char message[256];
 };
 
 struct fromServerPacket {

@@ -2,7 +2,6 @@
 #ifndef _GAME_STATE_H
 #define _GAME_STATE_H
 
-#include "packets.h"
 #include <deque>
 
 #define MAX_PLAYERS 2
@@ -16,6 +15,5 @@ struct GameState {
 	int currentPlayerTurn = -1;
 };
 
-bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& currentPacketQueue);
 
 #endif

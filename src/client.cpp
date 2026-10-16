@@ -96,13 +96,13 @@ int main(int argc, char** argv) {
 			send(serverSocket, &myPacket, sizeof myPacket, 0);
         }
 
+		// PACKET HANDLING
 		for(auto& packet : currentServerPackets) {
-			// handle each incoming packet from server
+			// handle each queued server packet
 		}
+
 		currentServerPackets.clear();
 
-		// Render the last 10 texts, newest first
-		int y = 0;
 		EndDrawing();
 	}
 	CloseWindow();

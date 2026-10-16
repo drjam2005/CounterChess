@@ -12,7 +12,6 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
-#include <queue>
 #include <mutex>
 
 #include "../include/game_state.h"
@@ -23,7 +22,6 @@
 
 // global variables
 std::unordered_map<int, int> FDtoID;
-std::vector<ClientMessage> currentMessages;
 
 // queued packets
 std::vector<fromClientPacket> recievedClientPackets;
@@ -37,6 +35,8 @@ std::mutex toSendPacketQueueMutex;
 // game state
 GameState gameState;
 std::mutex gameStateMutex;
+
+bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& currentPacketQueue);
 
 #define return_error(...) \
 	do {\
@@ -185,4 +185,20 @@ int main(int argc, char** argv) {
 	close(serverSocket);
 
 	return 0;
+}
+
+bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& currentPacketQueue) {
+	// handle game loop
+	// PACKET HANDLING
+	int i = 0;
+	for(auto& packet : currentPacketQueue) {
+		// handle each queued client packet
+		if(packet.packetType == PACKET_SEND_MOVE) {
+			printf("%d. packet (%d) SEND_MOVE: %d\n", ++i, packet.clientFD, packet.chosenMove);
+		}
+	}
+
+	// empty queue
+	currentPacketQueue.clear();
+	return true;
 }
