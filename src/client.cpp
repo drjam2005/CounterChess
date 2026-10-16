@@ -1,18 +1,22 @@
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <thread>
-#include <mutex>
 #include <unistd.h>
 #include <netdb.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
+#include <thread>
+#include <vector>
+#include <deque>
+#include <mutex>
+
+#include "../include/game_state.h"
+#include "../include/packets.h"
+#include "../include/helpers.h"
 #include "../vendor/raylib/include/raylib.h"
 #define RAYGUI_IMPLEMENTATION
 #include "../vendor/raylib/include/raygui.h"
-#include "../include/packets.h"
-#include "../include/helpers.h"
 
 #define return_error(...) \
 	do {\
@@ -22,18 +26,18 @@
 		exit(1); \
 	} while(0)
 
+// global variables
+// game state
+GameState gameState;
+std::mutex gameStateMutex;
+int clientID;
 
-#include <vector>
-#include <deque>
+// queued packets
 std::vector<fromServerPacket> recievedServerPackets;
 std::deque<fromServerPacket> currentServerPackets;
 std::mutex currentServerPacketQueue;
 
-// globals
-GameState gameState;
-int clientID;
-
-void handleIncomingPackets(int serverFD) {
+void handleServerPackets(int serverFD) {
 	while(true) {
 		fromServerPacket serverPacket;
 		ssize_t res = recvAll(serverFD, &serverPacket, sizeof serverPacket, 0);
@@ -43,6 +47,10 @@ void handleIncomingPackets(int serverFD) {
 			return_error("server died unexpectedly...");
 		if(serverPacket.packetType == PACKET_SERVER_FULL)
 			return_error("ERROR: %s", serverPacket.message);
+
+		{ // misc handling
+		}
+
 
 		currentServerPacketQueue.lock();
 			currentServerPackets.push_back(serverPacket);
@@ -75,21 +83,24 @@ int main(int argc, char** argv) {
 	int res = connect(serverSocket, (struct sockaddr*)&server_addr, sizeof(server_addr));
 	if(res == -1) return_error("bind error");
 
-	std::thread packetHandler(handleIncomingPackets, serverSocket);
+	std::thread packetHandler(handleServerPackets, serverSocket);
 	packetHandler.detach();
 
 	memset(&gameState, 0, sizeof gameState);
 
 
-	// rendering
+	// initialize rendering
 	SetTraceLogLevel(LOG_NONE);
 	InitWindow(300, 400, "Client Window");
 	SetTargetFPS(60);
 
-	char messageBuffer[256];
-	memset(messageBuffer, 0, sizeof messageBuffer);
-	bool editMode = true;
+	// start rendering
 	while(!WindowShouldClose()) {
+		// game loop
+		currentServerPacketQueue.lock();
+			handleGameState(gameState, currentServerPackets);
+		currentServerPacketQueue.unlock();
+
 		BeginDrawing();
 		ClearBackground(WHITE);
 		DrawText(TextFormat("My ID: %d", clientID), 20, 20, 15, BLACK);
@@ -110,15 +121,11 @@ int main(int argc, char** argv) {
 			if (res <= 0) return_error("sendAll error...");
         }
 
-		currentServerPacketQueue.lock();
-			handleGameState(gameState, currentServerPackets);
-		currentServerPacketQueue.unlock();
-
-		currentServerPackets.clear();
-
 		EndDrawing();
 	}
 	CloseWindow();
+	close(serverSocket);
+
 	return 0;
 }
 
@@ -129,7 +136,7 @@ bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& current
 		// handle each queued server packet
 		if(serverPacket.packetType == PACKET_SEND_ID)
 			clientID = serverPacket.ID;
-	}
+ 	}
 
 	// empty queue
 	currentServerPackets.clear();

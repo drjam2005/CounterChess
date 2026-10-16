@@ -1,17 +1,14 @@
-#include <deque>
-#include <netinet/in.h>
-#include <strings.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include <cstdlib>
 #include <thread>
-#include <unordered_map>
 #include <vector>
+#include <deque>
 #include <mutex>
 
 #include "../include/game_state.h"
@@ -31,7 +28,9 @@
 
 
 // global variables
-std::unordered_map<int, int> FDtoID;
+// game state
+GameState gameState;
+std::mutex gameStateMutex;
 
 // queued packets
 std::vector<fromClientPacket> recievedClientPackets;
@@ -42,32 +41,23 @@ std::vector<fromServerPacket> toSendClientPackets;
 std::deque<fromServerPacket> toSendPacketQueue;
 std::mutex toSendPacketQueueMutex;
 
-// game state
-GameState gameState;
-std::mutex gameStateMutex;
-
+void handleClientDisconnect(int clientFD, int clientID);
 bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& currentPacketQueue);
 
-void processClientPackets(int clientFD, int clientID) {
+void handleClientPackets(int clientFD, int clientID) {
     while(true) {
         char buffer[256] = {};
 		fromClientPacket packet;
         ssize_t res = recvAll(clientFD, &packet, sizeof(packet), 0);
 		packet.clientFD = clientFD;
 
+		// error handling
         if (res == 0) {
-            printf("Client %d disconnected.\n", clientID);
-			gameStateMutex.lock();
-				for(int i = 1; i <= MAX_PLAYERS; ++i) {
-					if(gameState.playerIDtoFD[i] == clientFD) {
-						gameState.playerIDtoFD[i] = 0;
-						gameState.currentPlayerCount--;
-						break;
-					}
-				}
-			gameStateMutex.unlock();
-            break;
+			handleClientDisconnect(clientFD, clientID); break;
         }
+
+		{ // misc handling
+		}
 
 		clientPacketQueueMutex.lock();
 			currentPacketQueue.push_back(packet);
@@ -111,8 +101,6 @@ void acceptClients(int serverSocket) {
 			}
 		gameStateMutex.unlock();
 
-		printf("Accepting client with FD of %d and ID of %d\n", clientFD, FDtoID[clientFD]);
-
 		// send to client it's own ID
 		fromServerPacket packet;
 		packet.packetType = PACKET_SEND_ID;
@@ -120,7 +108,9 @@ void acceptClients(int serverSocket) {
 		int res = sendAll(clientFD, &packet, sizeof packet, 0);
 		if (res <= 0) return_error("sendAll error...");
 
-		std::thread singleClientThread(processClientPackets, clientFD, FDtoID[clientFD]);
+		printf("Accepting Client with FD of %d and ID of %d\n", clientFD, id);
+
+		std::thread singleClientThread(handleClientPackets, clientFD, id);
 		singleClientThread.detach();
 	}
 }
@@ -159,26 +149,23 @@ int main(int argc, char** argv) {
 
 	// start rendering
 	while(!WindowShouldClose()) {
+		// game loop
+		clientPacketQueueMutex.lock();
+			handleGameState(gameState, currentPacketQueue);
+		clientPacketQueueMutex.unlock();
+
 		BeginDrawing();
 		ClearBackground(RAYWHITE);
 
 		DrawText("This is server\n", 20, 20, 15, BLACK);
 		DrawText(TextFormat("Player Count: %d\n", gameState.currentPlayerCount), 20, 40, 15, BLACK);
 
-		// game loop
-		clientPacketQueueMutex.lock();
-			handleGameState(gameState, currentPacketQueue);
-		clientPacketQueueMutex.unlock();
-
 		int y = 0;
 		int i = 0;
 		for(auto& packet : recievedClientPackets){
 			DrawText(TextFormat("%d. packet (ClientFD: %d) SEND_MOVE: %d\n", ++i, packet.clientFD, packet.chosenMove),
-					20,
-					60+y,
-					15,
-					BLACK
-				);
+					20, 60+y,
+					15, BLACK);
 			y+=20;
 		}
 
@@ -190,11 +177,22 @@ int main(int argc, char** argv) {
 	return 0;
 }
 
+void handleClientDisconnect(int clientFD, int clientID) {
+	printf("Client %d disconnected.\n", clientID);
+	gameStateMutex.lock();
+		for(int i = 1; i <= MAX_PLAYERS; ++i) {
+			if(gameState.playerIDtoFD[i] == clientFD) {
+				gameState.playerIDtoFD[i] = 0;
+				gameState.currentPlayerCount--;
+				break;
+			}
+		}
+	gameStateMutex.unlock();
+} 
+
 bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& currentPacketQueue) {
 	// handle game loop
 	// PACKET HANDLING
-
-	int i = 0;
 	for(auto& packet : currentPacketQueue) {
 		// handle each queued client packet
 		if(packet.packetType == PACKET_SEND_MOVE)
