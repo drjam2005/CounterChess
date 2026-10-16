@@ -21,18 +21,17 @@
 	} while(0)
 
 
-#include <vector>
-std::vector<ClientMessage> currentMessages;
+#include <deque>
+std::deque<fromServerPacket> currentServerPackets;
 
 void handleIncomingPackets(int serverFD) {
 	while(true) {
-		ClientMessage msgPacket;
-		int res = recv(serverFD, &msgPacket, sizeof msgPacket, 0);
+		fromServerPacket serverPacket;
+		int res = recv(serverFD, &serverPacket, sizeof serverPacket, 0);
 		if(res == 0) return_error("server closed unexpectedly...");
 
 		// if(res != sizeof msgPacket) return_error("TODO: incomplete recieve size");
-
-		currentMessages.push_back(msgPacket);
+		currentServerPackets.push_back(serverPacket);
 	}
 }
 
@@ -73,44 +72,29 @@ int main(int argc, char** argv) {
 	while(!WindowShouldClose()) {
 		BeginDrawing();
 		ClearBackground(WHITE);
+		DrawText(TextFormat("My ID: %d", clientID), 20, 20, 15, BLACK);
 
-		// handle sending of messages
-		if (GuiTextBox(
-			(Rectangle){ 20, 20, 200, 40 },
-			messageBuffer,
-			sizeof(messageBuffer),
-			editMode))
-        {
-            editMode = !editMode;
+		if (GuiButton((Rectangle){ 20, 100, 50, 40 }, "Send 1")) {
+			fromClientPacket myPacket;
+			myPacket.packetType = PACKET_SEND_MOVE;
+			myPacket.chosenMove = 1;
+			send(serverSocket, &myPacket, sizeof myPacket, 0);
         }
 
-
-		if (GuiButton((Rectangle){ 230, 20, 50, 40 }, "Send")) {
-            if (messageBuffer[0] != '\0') {
-                TraceLog(LOG_INFO, "Message: %s", messageBuffer);
-				
-				size_t len = strlen(messageBuffer) + 1;
-				ssize_t sent = send(serverSocket, messageBuffer, len, 0);
-				if(sent < 0) return_error("send error");
-                messageBuffer[0] = '\0';
-            }
+		if (GuiButton((Rectangle){ 20, 150, 51, 40 }, "Send 2")) {
+			fromClientPacket myPacket;
+			myPacket.packetType = PACKET_SEND_MOVE;
+			myPacket.chosenMove = 2;
+			send(serverSocket, &myPacket, sizeof myPacket, 0);
         }
 
-		DrawText("Only renders the\n last 10 messages", 20, 70, 10, BLACK);
+		for(auto& packet : currentServerPackets) {
+			// handle each incoming packet from server
+		}
+		currentServerPackets.clear();
 
 		// Render the last 10 texts, newest first
 		int y = 0;
-
-		for (int i = 0; i < 10 && i < currentMessages.size(); ++i) {
-			const ClientMessage& msg = currentMessages[currentMessages.size() - 1 - i];
-
-			if (msg.clientID == clientID)
-				DrawText(TextFormat("[You] > %s", msg.message), 20, 100 + y, 15, RED);
-			else
-				DrawText(TextFormat("[Client %d] > %s", msg.clientID, msg.message), 20, 100 + y, 15, BLACK);
-
-			y += 20;
-		}
 		EndDrawing();
 	}
 	CloseWindow();
