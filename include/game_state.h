@@ -5,9 +5,13 @@
 #include "packets.h"
 #include <deque>
 
+#define MAX_PLAYERS 2
+
 struct GameState {
-	int player1FD = -1;
-	int player2FD = -1;
+	// handle player IDs
+	// reserve 0 for hehe po :3
+	int playerIDtoFD[MAX_PLAYERS + 1];
+	size_t currentPlayerCount = 0;
 
 	int currentPlayerTurn = -1;
 };

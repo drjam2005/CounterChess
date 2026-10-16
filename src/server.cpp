@@ -55,10 +55,13 @@ void processSingleClient(int clientFD, int clientID) {
         if(res == 0) {
             printf("Client %d disconnected.\n", clientID);
 			gameStateMutex.lock();
-				if(gameState.player1FD == clientFD)
-					gameState.player1FD = -1;
-				else if (gameState.player2FD == clientFD)
-					gameState.player2FD = -1;
+			for(int i = 1; i <= MAX_PLAYERS; ++i) {
+				if(gameState.playerIDtoFD[i] == clientFD) {
+					gameState.playerIDtoFD[i] = 0;
+					gameState.currentPlayerCount--;
+					break;
+				}
+			}
 			gameStateMutex.unlock();
             break;
         }
@@ -82,24 +85,37 @@ void acceptClients(int serverSocket) {
 		int clientFD = accept(serverSocket, 0, 0);
 		if(clientFD == -1) return_error("accept error");
 		
-		// this assumes only 2 clients at most
+		// this assumes only MAX_PLAYERS clients at most
+		int id;
 		gameStateMutex.lock();
-		if (gameState.player1FD == -1) {
-			gameState.player1FD = clientFD;
-			int ID = 1;
-			send(clientFD, &ID, sizeof ID, 0);
-		} else if (gameState.player2FD == -1) {
-			gameState.player2FD = clientFD;
-			int ID = 2;
-			send(clientFD, &ID, sizeof ID, 0);
-		} else {
-			close(clientFD);
-		}
+			if (gameState.currentPlayerCount < MAX_PLAYERS) {
+				for(id = 1; id <= MAX_PLAYERS; ++id) {
+					if (gameState.playerIDtoFD[id] == 0) {
+						gameState.playerIDtoFD[id] = clientFD;
+						gameState.currentPlayerCount++;
+						break;
+					}
+				}
+			} else {
+				gameStateMutex.unlock();
+				// send full 
+				fromServerPacket packet;
+				packet.packetType = PACKET_SERVER_FULL;
+				snprintf(packet.message, sizeof packet.message, "Server is full (max of %d players)", MAX_PLAYERS);
+				packet.ID = -1;
+				send(clientFD, &packet, sizeof packet, 0);
+				close(clientFD);
+				continue;
+			}
 		gameStateMutex.unlock();
 
 		printf("Accepting client with FD of %d and ID of %d\n", clientFD, FDtoID[clientFD]);
 
 		// send to client it's own ID
+		fromServerPacket packet;
+		packet.packetType = PACKET_SEND_ID;
+		packet.ID = id;
+		send(clientFD, &packet, sizeof packet, 0);
 
 		std::thread singleClientThread(processSingleClient, clientFD, FDtoID[clientFD]);
 		singleClientThread.detach();
@@ -126,9 +142,9 @@ int main(int argc, char** argv) {
 	int res = bind(serverSocket, (struct sockaddr *)&server_addr, sizeof server_addr);
 	if (res == -1) return_error("bind error");
 
-
 	// initialize rendering
-	InitWindow(800, 600, "Server");
+	SetTraceLogLevel(LOG_NONE);
+	InitWindow(400, 600, "Server");
 	SetTargetFPS(60);
 
 	// listen on port
@@ -136,12 +152,15 @@ int main(int argc, char** argv) {
 	std::thread clientAcceptor(acceptClients, serverSocket);
 	clientAcceptor.detach();
 
+	memset(&gameState, 0, sizeof gameState);
+
 	// start rendering
 	while(!WindowShouldClose()) {
 		BeginDrawing();
 		ClearBackground(RAYWHITE);
 
 		DrawText("This is server\n", 20, 20, 15, BLACK);
+		DrawText(TextFormat("Player Count: %d\n", gameState.currentPlayerCount), 20, 40, 15, BLACK);
 
 		// game loop
 		clientPacketQueueMutex.lock();
@@ -153,7 +172,7 @@ int main(int argc, char** argv) {
 		for(auto& packet : recievedClientPackets){
 			DrawText(TextFormat("%d. packet (ClientFD: %d) SEND_MOVE: %d\n", ++i, packet.clientFD, packet.chosenMove),
 					20,
-					40+y,
+					60+y,
 					15,
 					BLACK
 				);

@@ -8,6 +8,7 @@ enum PACKET_TYPE {
 	// to client
 	PACKET_NULL = 0,
 	PACKET_SEND_ID,
+	PACKET_SERVER_FULL,
 	PACKET_SEND_STATE,
 
 	// from client
@@ -24,6 +25,7 @@ struct ClientMessage {
 struct fromServerPacket {
 	// arbitrary data
 	PACKET_TYPE packetType;
+	int ID;
 	char message[256];
 };
 

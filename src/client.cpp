@@ -24,11 +24,19 @@
 #include <deque>
 std::deque<fromServerPacket> currentServerPackets;
 
+// globals
+int clientID;
+
 void handleIncomingPackets(int serverFD) {
 	while(true) {
 		fromServerPacket serverPacket;
 		int res = recv(serverFD, &serverPacket, sizeof serverPacket, 0);
 		if(res == 0) return_error("server closed unexpectedly...");
+
+		if(serverPacket.packetType == PACKET_SERVER_FULL)
+			return_error("ERROR: %s", serverPacket.message);
+		else if(serverPacket.packetType == PACKET_SEND_ID)
+			clientID = serverPacket.ID;
 
 		// if(res != sizeof msgPacket) return_error("TODO: incomplete recieve size");
 		currentServerPackets.push_back(serverPacket);
@@ -57,12 +65,12 @@ int main(int argc, char** argv) {
 	int res = connect(serverSocket, (struct sockaddr*)&server_addr, sizeof(server_addr));
 	if(res == -1) return_error("bind error");
 
-	int clientID;
-	recv(serverSocket, &clientID, sizeof clientID, 0);
 	std::thread packetHandler(handleIncomingPackets, serverSocket);
 	packetHandler.detach();
 
+
 	// rendering
+	SetTraceLogLevel(LOG_NONE);
 	InitWindow(300, 400, "Client Window");
 	SetTargetFPS(60);
 
