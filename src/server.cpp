@@ -61,14 +61,12 @@ void queuePacket(const fromServerPacket& packet) {
 	toClientPacketQueueReady.notify_one();
 }
 
-void queuePacketAll(const fromServerPacket& packet) {
+void queuePacketAll(const fromServerPacket& packet, const GameState& state) {
 	fromServerPacket tempPacket = packet;
 	int clientFDs[MAX_PLAYERS];
 
-	gameStateMutex.lock();
 	for (int i = 0; i < MAX_PLAYERS; ++i)
-		clientFDs[i] = gameState.playerIDtoFD[i + 1];
-	gameStateMutex.unlock();
+		clientFDs[i] = state.playerIDtoFD[i + 1];
 
 	for (int i = 0; i < MAX_PLAYERS; ++i) {
 		int clientFD = clientFDs[i];
@@ -338,7 +336,7 @@ bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& current
 			fromServerPacket serverPacket = {};
 			serverPacket.packetType = PACKET_SEND_MESSAGE;
 			snprintf(serverPacket.message, sizeof serverPacket.message,"Client %d: %s\n", packet.clientID, packet.message);
-			queuePacketAll(serverPacket);
+			queuePacketAll(serverPacket, gameState);
 		}
 	}
 
