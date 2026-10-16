@@ -27,7 +27,7 @@
 		fprintf(stderr, "%s:%d: ", __FILE__, __LINE__);\
 		fprintf(stderr, __VA_ARGS__); \
 		fputc('\n', stderr);\
-		perror("ERROR");\
+		if(errno != 0) perror("ERROR");\
 		exit(1); \
 	} while(0)
 
