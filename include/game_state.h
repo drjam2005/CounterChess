@@ -11,8 +11,6 @@ struct GameState {
 	// reserve 0 for hehe po :3
 	int playerIDtoFD[MAX_PLAYERS + 1];
 	size_t currentPlayerCount = 0;
-
-	int currentPlayerIDTurn = -1;
 };
 
 

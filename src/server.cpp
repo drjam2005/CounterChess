@@ -166,11 +166,6 @@ void acceptClients(int serverSocket) {
 				continue;
 			}
 
-			// check if amount of players is sufficient
-			if(gameState.currentPlayerCount == MAX_PLAYERS) {
-				// game start
-				gameState.currentPlayerIDTurn = 1;
-			}
 			GameState stateSnapshot = gameState;
 
 		gameStateMutex.unlock();
@@ -217,7 +212,6 @@ int main(int argc, char** argv) {
 	SetExitKey(KEY_NULL);
 
 	memset(&gameState, 0, sizeof gameState);
-	gameState.currentPlayerIDTurn = -1;
 	std::thread outboundSender(sendQueuedPackets);
 
 	// listen on port
@@ -258,7 +252,6 @@ int main(int argc, char** argv) {
 
 		DrawText("This is server\n", 20, 20, FONT_SIZE, BLACK);
 		DrawText(TextFormat("Player Count: %d\n", stateSnapshot.currentPlayerCount), 20, 40, FONT_SIZE, BLACK);
-		DrawText(TextFormat("Current turn: %d\n", stateSnapshot.currentPlayerIDTurn), 20, 60, FONT_SIZE, BLACK);
 
 		int y = 0;
 		int i = 0;
@@ -291,8 +284,6 @@ void handleClientDisconnect(int clientFD, int clientID) {
 			if(gameState.playerIDtoFD[i] == clientFD) {
 				gameState.playerIDtoFD[i] = 0;
 				gameState.currentPlayerCount--;
-				if (gameState.currentPlayerCount < MAX_PLAYERS)
-					gameState.currentPlayerIDTurn = -1;
 				break;
 			}
 		}
@@ -308,27 +299,8 @@ bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& current
 	for(auto& packet : currentPacketQueue) {
 		// handle each queued client packet
 		if(packet.packetType == PACKET_SEND_MOVE) {
-			if (gameState.currentPlayerIDTurn != packet.clientID) {
-				fromServerPacket serverPacket = {};
-				serverPacket.packetType = PACKET_INFORM_PLAYER_NOT_TURN;
-				serverPacket.receivingFD = packet.clientFD;
-				queuePacket(serverPacket);
-
-				printf("Client (%d): SEND_MOVE %d (NOT THEIR TURN)\n", packet.clientID, packet.chosenMove);
-			} else {
-				printf("Client (%d): SEND_MOVE %d (THEIR TURN)\n", packet.clientID, packet.chosenMove);
-
-				// swap turn
-				swap_turn(gameState);
-				// send all players the current game state
-				broadcastGameState = true;
-			}
-		}
-		if(packet.packetType == PACKET_SEND_MESSAGE) {
-			fromServerPacket serverPacket = {};
-			serverPacket.packetType = PACKET_SEND_MESSAGE;
-			snprintf(serverPacket.message, sizeof serverPacket.message,"Client %d: %s\n", packet.clientID, packet.message);
-			queuePacketAll(serverPacket);
+			printf("Client (%d): SEND_MOVE %d (THEIR TURN)\n", packet.clientID, packet.chosenMove);
+			broadcastGameState = true;
 		}
 	}
 
