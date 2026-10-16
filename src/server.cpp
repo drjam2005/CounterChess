@@ -63,8 +63,18 @@ void queuePacket(const fromServerPacket& packet) {
 
 void queuePacketAll(const fromServerPacket& packet) {
 	fromServerPacket tempPacket = packet;
-	for (int i = 1; i <= MAX_PLAYERS; ++i) {
-		tempPacket.receivingFD = gameState.playerIDtoFD[i];
+	int clientFDs[MAX_PLAYERS];
+
+	gameStateMutex.lock();
+	for (int i = 0; i < MAX_PLAYERS; ++i)
+		clientFDs[i] = gameState.playerIDtoFD[i + 1];
+	gameStateMutex.unlock();
+
+	for (int i = 0; i < MAX_PLAYERS; ++i) {
+		int clientFD = clientFDs[i];
+		if (clientFD == 0)
+			continue;
+		tempPacket.receivingFD = clientFD;
 		queuePacket(tempPacket);
 	}
 }
