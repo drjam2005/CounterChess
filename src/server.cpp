@@ -10,6 +10,8 @@
 #include <vector>
 #include <deque>
 #include <mutex>
+#include <condition_variable>
+#include <atomic>
 
 #include "../include/game_state.h"
 #include "../include/packets.h"
@@ -18,42 +20,99 @@
 #define RAYGUI_IMPLEMENTATION
 #include "../vendor/raylib/include/raygui.h"
 
+#define FONT_SIZE 25
+
 #define return_error(...) \
 	do {\
 		fprintf(stderr, "%s:%d: ", __FILE__, __LINE__);\
 		fprintf(stderr, __VA_ARGS__); \
-		fputc('\n', stderr); \
+		fputc('\n', stderr);\
+		perror("ERROR");\
 		exit(1); \
 	} while(0)
 
+#define swap_turn(state) \
+	do {\
+		if(state.currentPlayerIDTurn == 1)\
+			state.currentPlayerIDTurn = 2;\
+		else \
+			state.currentPlayerIDTurn = 1;\
+	} while(0)
 
 // global variables
 // game state
 GameState gameState;
 std::mutex gameStateMutex;
+std::atomic<bool> queueExit{false};
 
 // queued packets
 std::vector<fromClientPacket> recievedClientPackets;
 std::deque<fromClientPacket> currentPacketQueue;
 std::mutex clientPacketQueueMutex;
 
-std::vector<fromServerPacket> toSendClientPackets;
-std::deque<fromServerPacket> toSendPacketQueue;
-std::mutex toSendPacketQueueMutex;
+std::deque<fromServerPacket> toClientPacketQueue;
+std::mutex toClientPacketQueueMutex;
+std::condition_variable toClientPacketQueueReady;
+
+void queuePacket(const fromServerPacket& packet) {
+	toClientPacketQueueMutex.lock();
+	toClientPacketQueue.push_back(packet);
+	toClientPacketQueueMutex.unlock();
+	toClientPacketQueueReady.notify_one();
+}
+
+void queuePacketAll(const fromServerPacket& packet) {
+	fromServerPacket tempPacket = packet;
+	for (int i = 1; i <= MAX_PLAYERS; ++i) {
+		tempPacket.receivingFD = gameState.playerIDtoFD[i];
+		queuePacket(tempPacket);
+	}
+}
+
+
+void sendQueuedPackets() {
+	while(true) {
+		fromServerPacket packet;
+		{
+			std::unique_lock<std::mutex> lock(toClientPacketQueueMutex);
+			toClientPacketQueueReady.wait(lock, [] {
+				return queueExit || !toClientPacketQueue.empty();
+			});
+			if (toClientPacketQueue.empty() && queueExit) return;
+			packet = toClientPacketQueue.front();
+			toClientPacketQueue.pop_front();
+		}
+
+		if(sendAll(packet.receivingFD, &packet, sizeof packet, 0) <= 0)
+			return_error("sendAll error...");
+	}
+}
+
+void queueGameState(const GameState& state) {
+	for (int i = 1; i <= MAX_PLAYERS; ++i) {
+		if (state.playerIDtoFD[i] == 0) continue;
+		fromServerPacket packet = {};
+		packet.packetType = PACKET_SEND_GAME_STATE;
+		packet.gameState = state;
+		packet.receivingFD = state.playerIDtoFD[i];
+		queuePacket(packet);
+	}
+}
 
 void handleClientDisconnect(int clientFD, int clientID);
 bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& currentPacketQueue);
 
 void handleClientPackets(int clientFD, int clientID) {
     while(true) {
+		if(queueExit)
+			break;
+
         char buffer[256] = {};
 		fromClientPacket packet;
         ssize_t res = recvAll(clientFD, &packet, sizeof(packet), 0);
 
 		// error handling
-        if (res == 0) {
-			handleClientDisconnect(clientFD, clientID); break;
-        }
+        if (res <= 0) break;
 
 		{ // misc handling
 			packet.clientFD = clientFD;
@@ -65,17 +124,21 @@ void handleClientPackets(int clientFD, int clientID) {
 			recievedClientPackets.push_back(packet);
 		clientPacketQueueMutex.unlock();
 
-        if (res < 0) 
-			return_error("recv error on ClientFD %d", clientFD);
     }
 
+	handleClientDisconnect(clientFD, clientID);
     close(clientFD);
 }
 
 void acceptClients(int serverSocket) {
 	while(true) {
+		if(queueExit)
+			break;
 		int clientFD = accept(serverSocket, 0, 0);
-		if(clientFD == -1) return_error("accept error");
+		if(clientFD == -1) {
+			if (queueExit) return;
+			return_error("accept error");
+		}
 		
 		// this assumes only MAX_PLAYERS clients at most
 		int id;
@@ -90,24 +153,35 @@ void acceptClients(int serverSocket) {
 				}
 			} else {
 				gameStateMutex.unlock();
-				fromServerPacket packet;
-				packet.packetType = PACKET_SERVER_FULL;
-				snprintf(packet.message, sizeof packet.message, "Server is full (max of %d players)", MAX_PLAYERS);
-				packet.ID = -1;
-				int res = sendAll(clientFD, &packet, sizeof packet, 0);
-				if (res <= 0) return_error("sendAll error...");
 
+				fromServerPacket packet = {};
+				packet.packetType = PACKET_SERVER_FULL;
+				packet.receivingFD = clientFD;
+				packet.providedPlayerID = -1;
+				snprintf(packet.message, sizeof packet.message, "Server is full (max of %d players)", MAX_PLAYERS);
+
+				if (sendAll(clientFD, &packet, sizeof packet, 0) <= 0)
+					fprintf(stderr, "failed to send server-full response\n");
 				close(clientFD);
 				continue;
 			}
+
+			// check if amount of players is sufficient
+			if(gameState.currentPlayerCount == MAX_PLAYERS) {
+				// game start
+				gameState.currentPlayerIDTurn = 1;
+			}
+			GameState stateSnapshot = gameState;
+
 		gameStateMutex.unlock();
 
 		// send to client it's own ID
-		fromServerPacket packet;
+		fromServerPacket packet = {};
 		packet.packetType = PACKET_SEND_ID;
-		packet.ID = id;
-		int res = sendAll(clientFD, &packet, sizeof packet, 0);
-		if (res <= 0) return_error("sendAll error...");
+		packet.providedPlayerID = id;
+		packet.receivingFD = clientFD;
+		queuePacket(packet);
+		queueGameState(stateSnapshot);
 
 		printf("Accepting Client with FD of %d and ID of %d\n", clientFD, id);
 
@@ -140,40 +214,72 @@ int main(int argc, char** argv) {
 	SetTraceLogLevel(LOG_NONE);
 	InitWindow(400, 600, "Server");
 	SetTargetFPS(60);
+	SetExitKey(KEY_NULL);
+
+	memset(&gameState, 0, sizeof gameState);
+	gameState.currentPlayerIDTurn = -1;
+	std::thread outboundSender(sendQueuedPackets);
 
 	// listen on port
 	listen(serverSocket, 5);
 	std::thread clientAcceptor(acceptClients, serverSocket);
 	clientAcceptor.detach();
 
-	memset(&gameState, 0, sizeof gameState);
-
 	// start rendering
-	while(!WindowShouldClose()) {
+	while(!queueExit) {
 		// game loop
+		if(IsKeyPressed(KEY_ESCAPE) || WindowShouldClose()) {
+			GameState stateSnapshot;
+			gameStateMutex.lock();
+				stateSnapshot = gameState;
+			gameStateMutex.unlock();
+
+			for (int i = 1; i <= MAX_PLAYERS; ++i) {
+				if (stateSnapshot.playerIDtoFD[i] == 0) continue;
+				fromServerPacket packet = {};
+				packet.packetType = PACKET_SERVER_SHUTDOWN;
+				packet.receivingFD = stateSnapshot.playerIDtoFD[i];
+				queuePacket(packet);
+			}
+			queueExit = true;
+			toClientPacketQueueReady.notify_all();
+			break;
+		}
+
 		clientPacketQueueMutex.lock();
+			gameStateMutex.lock();
 			handleGameState(gameState, currentPacketQueue);
+			GameState stateSnapshot = gameState;
+			gameStateMutex.unlock();
 		clientPacketQueueMutex.unlock();
 
 		BeginDrawing();
 		ClearBackground(RAYWHITE);
 
-		DrawText("This is server\n", 20, 20, 15, BLACK);
-		DrawText(TextFormat("Player Count: %d\n", gameState.currentPlayerCount), 20, 40, 15, BLACK);
+		DrawText("This is server\n", 20, 20, FONT_SIZE, BLACK);
+		DrawText(TextFormat("Player Count: %d\n", stateSnapshot.currentPlayerCount), 20, 40, FONT_SIZE, BLACK);
+		DrawText(TextFormat("Current turn: %d\n", stateSnapshot.currentPlayerIDTurn), 20, 60, FONT_SIZE, BLACK);
 
 		int y = 0;
 		int i = 0;
+		clientPacketQueueMutex.lock();
 		for(auto& packet : recievedClientPackets){
-			DrawText(TextFormat("%d. packet (ClientID: %d) SEND_MOVE: %d\n", ++i, packet.clientID, packet.chosenMove),
-					20, 60+y,
-					15, BLACK);
-			y+=20;
+			if(packet.packetType == PACKET_SEND_MOVE) {
+				DrawText(TextFormat("%d. packet (ClientID: %d) SEND_MOVE: %d\n", ++i, packet.clientID, packet.chosenMove),
+						20, 80+y,
+						FONT_SIZE, BLACK);
+			y+= FONT_SIZE + 5;
+			}
 		}
+		clientPacketQueueMutex.unlock();
 
 		EndDrawing();
 	}
-	CloseWindow();
+	toClientPacketQueueReady.notify_all();
+	shutdown(serverSocket, SHUT_RDWR);
 	close(serverSocket);
+	outboundSender.join();
+	CloseWindow();
 
 	return 0;
 }
@@ -185,19 +291,50 @@ void handleClientDisconnect(int clientFD, int clientID) {
 			if(gameState.playerIDtoFD[i] == clientFD) {
 				gameState.playerIDtoFD[i] = 0;
 				gameState.currentPlayerCount--;
+				if (gameState.currentPlayerCount < MAX_PLAYERS)
+					gameState.currentPlayerIDTurn = -1;
 				break;
 			}
 		}
+		if (!queueExit)
+			queueGameState(gameState);
 	gameStateMutex.unlock();
 } 
 
 bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& currentPacketQueue) {
 	// handle game loop
 	// PACKET HANDLING
+	bool broadcastGameState = false;
 	for(auto& packet : currentPacketQueue) {
 		// handle each queued client packet
-		if(packet.packetType == PACKET_SEND_MOVE)
-			printf("Client (%d): SEND_MOVE %d\n", packet.clientID, packet.chosenMove);
+		if(packet.packetType == PACKET_SEND_MOVE) {
+			if (gameState.currentPlayerIDTurn != packet.clientID) {
+				fromServerPacket serverPacket = {};
+				serverPacket.packetType = PACKET_INFORM_PLAYER_NOT_TURN;
+				serverPacket.receivingFD = packet.clientFD;
+				queuePacket(serverPacket);
+
+				printf("Client (%d): SEND_MOVE %d (NOT THEIR TURN)\n", packet.clientID, packet.chosenMove);
+			} else {
+				printf("Client (%d): SEND_MOVE %d (THEIR TURN)\n", packet.clientID, packet.chosenMove);
+
+				// swap turn
+				swap_turn(gameState);
+				// send all players the current game state
+				broadcastGameState = true;
+			}
+		}
+		if(packet.packetType == PACKET_SEND_MESSAGE) {
+			fromServerPacket serverPacket = {};
+			serverPacket.packetType = PACKET_SEND_MESSAGE;
+			snprintf(serverPacket.message, sizeof serverPacket.message,"Client %d: %s\n", packet.clientID, packet.message);
+			queuePacketAll(serverPacket);
+		}
+	}
+
+	if (broadcastGameState) {
+		printf("gameState has been updated, broadcasting...\n");
+		queueGameState(gameState);
 	}
 
 	// empty queue

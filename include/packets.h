@@ -6,21 +6,29 @@
 #include "game_state.h"
 
 enum PACKET_TYPE {
-	// from server
+	// from server / to client
 	PACKET_NULL = 0,
 	PACKET_SEND_ID,
 	PACKET_SERVER_FULL,
 	PACKET_SEND_GAME_STATE,
+	PACKET_SERVER_SHUTDOWN,
+	PACKET_INFORM_PLAYER_NOT_TURN,
+	PACKET_INFORM_PLAYER_TURN,
 
-	// from client
+	// from client / to server
 	PACKET_SEND_MOVE,
+	PACKET_SEND_MESSAGE,
 
+	// misc
+	PACKET_COUNT
 };
 
 struct fromServerPacket {
 	// arbitrary data
 	PACKET_TYPE packetType;
-	int ID;
+	int receivingFD;
+	int providedPlayerID;
+	GameState gameState;
 	char message[256];
 };
 
@@ -32,6 +40,11 @@ struct fromClientPacket {
 	int clientFD;
 
 	int chosenMove;
+
+	char message[256];
 };
+
+#define toClientPacket fromServerPacket
+#define toServerPacket fromClientPacket
 
 #endif // _PACKET_H

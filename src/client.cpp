@@ -10,6 +10,8 @@
 #include <vector>
 #include <deque>
 #include <mutex>
+#include <condition_variable>
+#include <atomic>
 
 #include "../include/game_state.h"
 #include "../include/packets.h"
@@ -17,6 +19,8 @@
 #include "../vendor/raylib/include/raylib.h"
 #define RAYGUI_IMPLEMENTATION
 #include "../vendor/raylib/include/raygui.h"
+
+#define FONT_SIZE 25
 
 #define return_error(...) \
 	do {\
@@ -31,11 +35,43 @@
 GameState gameState;
 std::mutex gameStateMutex;
 int clientID;
+char messageBox[256];
+bool messageEditMode = true;
+std::atomic<bool> queueExit{false};
 
 // queued packets
 std::vector<fromServerPacket> recievedServerPackets;
 std::deque<fromServerPacket> currentServerPackets;
 std::mutex currentServerPacketQueue;
+
+std::deque<fromClientPacket> toServerPacketsQueue;
+std::mutex toServerPacketsQueueMutex;
+std::condition_variable toServerPacketsQueueReady;
+
+void queuePacket(const fromClientPacket& packet) {
+	toServerPacketsQueueMutex.lock();
+	toServerPacketsQueue.push_back(packet);
+	toServerPacketsQueueMutex.unlock();
+	toServerPacketsQueueReady.notify_one();
+}
+
+void sendQueuedPackets(int serverFD) {
+	while(true) {
+		fromClientPacket packet;
+		{
+			std::unique_lock<std::mutex> lock(toServerPacketsQueueMutex);
+			toServerPacketsQueueReady.wait(lock, [] {
+				return queueExit || !toServerPacketsQueue.empty();
+			});
+			if (queueExit) return;
+			packet = toServerPacketsQueue.front();
+			toServerPacketsQueue.pop_front();
+		}
+
+		if(sendAll(serverFD, &packet, sizeof packet, 0) <= 0)
+			return_error("sendAll error...");
+	}
+}
 
 void handleServerPackets(int serverFD) {
 	while(true) {
@@ -43,19 +79,23 @@ void handleServerPackets(int serverFD) {
 		ssize_t res = recvAll(serverFD, &serverPacket, sizeof serverPacket, 0);
 
 		// error handling
-		if(res == 0)
-			return_error("server died unexpectedly...");
+		if(res <= 0) return;
 		if(serverPacket.packetType == PACKET_SERVER_FULL)
 			return_error("ERROR: %s", serverPacket.message);
+		if(serverPacket.packetType == PACKET_SERVER_SHUTDOWN) {
+			queueExit = true;
+			toServerPacketsQueueReady.notify_all();
+			return;
+		}
 
 		{ // misc handling
 		}
-
 
 		currentServerPacketQueue.lock();
 			currentServerPackets.push_back(serverPacket);
 			recievedServerPackets.push_back(serverPacket);
 		currentServerPacketQueue.unlock();
+
 	}
 }
 
@@ -84,9 +124,10 @@ int main(int argc, char** argv) {
 	if(res == -1) return_error("bind error");
 
 	std::thread packetHandler(handleServerPackets, serverSocket);
-	packetHandler.detach();
+	std::thread packetSender(sendQueuedPackets, serverSocket);
 
 	memset(&gameState, 0, sizeof gameState);
+	memset(messageBox, 0, sizeof messageBox);
 
 
 	// initialize rendering
@@ -95,34 +136,72 @@ int main(int argc, char** argv) {
 	SetTargetFPS(60);
 
 	// start rendering
-	while(!WindowShouldClose()) {
+	while(!queueExit) {
 		// game loop
+		if(IsKeyPressed(KEY_ESCAPE) || WindowShouldClose()) {
+			queueExit = true;
+		}
+
 		currentServerPacketQueue.lock();
 			handleGameState(gameState, currentServerPackets);
 		currentServerPacketQueue.unlock();
 
 		BeginDrawing();
 		ClearBackground(WHITE);
-		DrawText(TextFormat("My ID: %d", clientID), 20, 20, 15, BLACK);
+		DrawText(TextFormat("My ID: %d", clientID), 20, 20, FONT_SIZE, BLACK);
+
+		if (gameState.currentPlayerIDTurn == clientID) {
+			DrawText("YOUR TURN", 20, 40, FONT_SIZE, GREEN);
+		} else {
+			DrawText("NOT YOUR TURN", 20, 40, FONT_SIZE, RED);
+		}
 
 		if (GuiButton((Rectangle){ 20, 100, 50, 40 }, "Send 1")) {
-			fromClientPacket myPacket;
+			fromClientPacket myPacket = {};
 			myPacket.packetType = PACKET_SEND_MOVE;
 			myPacket.chosenMove = 1;
-			int res = sendAll(serverSocket, &myPacket, sizeof myPacket, 0);
-			if (res <= 0) return_error("sendAll error...");
+
+			queuePacket(myPacket);
+
         }
 
 		if (GuiButton((Rectangle){ 20, 150, 51, 40 }, "Send 2")) {
-			fromClientPacket myPacket;
+			fromClientPacket myPacket = {};
 			myPacket.packetType = PACKET_SEND_MOVE;
 			myPacket.chosenMove = 2;
-			int res = sendAll(serverSocket, &myPacket, sizeof myPacket, 0);
-			if (res <= 0) return_error("sendAll error...");
+
+			queuePacket(myPacket);
+        }
+
+		if (GuiTextBox(
+            (Rectangle){ 20, 200, 200, 40 },
+            messageBox,
+            sizeof(messageBox),
+            messageEditMode
+        )) {
+			messageEditMode = !messageEditMode;
+		};
+
+        if (GuiButton((Rectangle){ 20, 250, 70, 40 }, "send")) {
+			// queue message
+			if(strlen(messageBox)) {
+				fromClientPacket packet = {};
+				packet.packetType = PACKET_SEND_MESSAGE;
+				strcpy(packet.message, messageBox);
+
+				queuePacket(packet);
+			}
+
+			messageBox[0] = '\0';
         }
 
 		EndDrawing();
 	}
+	queueExit = true;
+	toServerPacketsQueueReady.notify_all();
+	shutdown(serverSocket, SHUT_RDWR);
+	packetSender.join();
+	packetHandler.join();
 	CloseWindow();
 	close(serverSocket);
 
@@ -134,8 +213,19 @@ bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& current
 	// PACKET HANDLING
 	for(auto& serverPacket : currentServerPackets) {
 		// handle each queued server packet
+		// gameState stuff
 		if(serverPacket.packetType == PACKET_SEND_ID)
-			clientID = serverPacket.ID;
+			clientID = serverPacket.providedPlayerID;
+		if(serverPacket.packetType == PACKET_SEND_GAME_STATE)
+			gameState = serverPacket.gameState;
+		if(serverPacket.packetType == PACKET_SEND_MESSAGE)
+			printf("%s", serverPacket.message);
+
+		// handle server responses
+		if(serverPacket.packetType == PACKET_INFORM_PLAYER_TURN)
+			gameState.currentPlayerIDTurn = serverPacket.providedPlayerID;
+		if(serverPacket.packetType == PACKET_INFORM_PLAYER_NOT_TURN)
+			printf("Not your turn... dummy...\n");
  	}
 
 	// empty queue

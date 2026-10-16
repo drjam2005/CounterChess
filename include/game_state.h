@@ -12,7 +12,7 @@ struct GameState {
 	int playerIDtoFD[MAX_PLAYERS + 1];
 	size_t currentPlayerCount = 0;
 
-	int currentPlayerTurn = -1;
+	int currentPlayerIDTurn = -1;
 };
 
 
