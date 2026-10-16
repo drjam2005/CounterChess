@@ -1,6 +1,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <thread>
+#include <mutex>
 #include <unistd.h>
 #include <netdb.h>
 #include <stdio.h>
@@ -11,6 +12,7 @@
 #define RAYGUI_IMPLEMENTATION
 #include "../vendor/raylib/include/raygui.h"
 #include "../include/packets.h"
+#include "../include/helpers.h"
 
 #define return_error(...) \
 	do {\
@@ -21,27 +23,35 @@
 	} while(0)
 
 
+#include <vector>
 #include <deque>
+std::vector<fromServerPacket> recievedServerPackets;
 std::deque<fromServerPacket> currentServerPackets;
+std::mutex currentServerPacketQueue;
 
 // globals
+GameState gameState;
 int clientID;
 
 void handleIncomingPackets(int serverFD) {
 	while(true) {
 		fromServerPacket serverPacket;
-		int res = recv(serverFD, &serverPacket, sizeof serverPacket, 0);
-		if(res == 0) return_error("server closed unexpectedly...");
+		ssize_t res = recvAll(serverFD, &serverPacket, sizeof serverPacket, 0);
 
+		// error handling
+		if(res == 0)
+			return_error("server died unexpectedly...");
 		if(serverPacket.packetType == PACKET_SERVER_FULL)
 			return_error("ERROR: %s", serverPacket.message);
-		else if(serverPacket.packetType == PACKET_SEND_ID)
-			clientID = serverPacket.ID;
 
-		// if(res != sizeof msgPacket) return_error("TODO: incomplete recieve size");
-		currentServerPackets.push_back(serverPacket);
+		currentServerPacketQueue.lock();
+			currentServerPackets.push_back(serverPacket);
+			recievedServerPackets.push_back(serverPacket);
+		currentServerPacketQueue.unlock();
 	}
 }
+
+bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& currentServerPackets);
 
 int main(int argc, char** argv) {
 	if(argc != 3) return_error("Usage: ./client <ip_address> <port_number>");
@@ -68,6 +78,8 @@ int main(int argc, char** argv) {
 	std::thread packetHandler(handleIncomingPackets, serverSocket);
 	packetHandler.detach();
 
+	memset(&gameState, 0, sizeof gameState);
+
 
 	// rendering
 	SetTraceLogLevel(LOG_NONE);
@@ -86,20 +98,21 @@ int main(int argc, char** argv) {
 			fromClientPacket myPacket;
 			myPacket.packetType = PACKET_SEND_MOVE;
 			myPacket.chosenMove = 1;
-			send(serverSocket, &myPacket, sizeof myPacket, 0);
+			int res = sendAll(serverSocket, &myPacket, sizeof myPacket, 0);
+			if (res <= 0) return_error("sendAll error...");
         }
 
 		if (GuiButton((Rectangle){ 20, 150, 51, 40 }, "Send 2")) {
 			fromClientPacket myPacket;
 			myPacket.packetType = PACKET_SEND_MOVE;
 			myPacket.chosenMove = 2;
-			send(serverSocket, &myPacket, sizeof myPacket, 0);
+			int res = sendAll(serverSocket, &myPacket, sizeof myPacket, 0);
+			if (res <= 0) return_error("sendAll error...");
         }
 
-		// PACKET HANDLING
-		for(auto& packet : currentServerPackets) {
-			// handle each queued server packet
-		}
+		currentServerPacketQueue.lock();
+			handleGameState(gameState, currentServerPackets);
+		currentServerPacketQueue.unlock();
 
 		currentServerPackets.clear();
 
@@ -107,4 +120,18 @@ int main(int argc, char** argv) {
 	}
 	CloseWindow();
 	return 0;
+}
+
+bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& currentServerPackets) {
+	// handle game loop
+	// PACKET HANDLING
+	for(auto& serverPacket : currentServerPackets) {
+		// handle each queued server packet
+		if(serverPacket.packetType == PACKET_SEND_ID)
+			clientID = serverPacket.ID;
+	}
+
+	// empty queue
+	currentServerPackets.clear();
+	return true;
 }

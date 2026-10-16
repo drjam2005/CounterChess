@@ -16,9 +16,19 @@
 
 #include "../include/game_state.h"
 #include "../include/packets.h"
+#include "../include/helpers.h"
 #include "../vendor/raylib/include/raylib.h"
 #define RAYGUI_IMPLEMENTATION
 #include "../vendor/raylib/include/raygui.h"
+
+#define return_error(...) \
+	do {\
+		fprintf(stderr, "%s:%d: ", __FILE__, __LINE__);\
+		fprintf(stderr, __VA_ARGS__); \
+		fputc('\n', stderr); \
+		exit(1); \
+	} while(0)
+
 
 // global variables
 std::unordered_map<int, int> FDtoID;
@@ -38,43 +48,34 @@ std::mutex gameStateMutex;
 
 bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& currentPacketQueue);
 
-#define return_error(...) \
-	do {\
-		fprintf(stderr, "%s:%d: ", __FILE__, __LINE__);\
-		fprintf(stderr, __VA_ARGS__); \
-		fputc('\n', stderr); \
-		exit(1); \
-	} while(0)
-
-void processSingleClient(int clientFD, int clientID) {
+void processClientPackets(int clientFD, int clientID) {
     while(true) {
         char buffer[256] = {};
 		fromClientPacket packet;
-        ssize_t res = recv(clientFD, &packet, sizeof(packet), 0);
+        ssize_t res = recvAll(clientFD, &packet, sizeof(packet), 0);
+		packet.clientFD = clientFD;
 
-        if(res == 0) {
+        if (res == 0) {
             printf("Client %d disconnected.\n", clientID);
 			gameStateMutex.lock();
-			for(int i = 1; i <= MAX_PLAYERS; ++i) {
-				if(gameState.playerIDtoFD[i] == clientFD) {
-					gameState.playerIDtoFD[i] = 0;
-					gameState.currentPlayerCount--;
-					break;
+				for(int i = 1; i <= MAX_PLAYERS; ++i) {
+					if(gameState.playerIDtoFD[i] == clientFD) {
+						gameState.playerIDtoFD[i] = 0;
+						gameState.currentPlayerCount--;
+						break;
+					}
 				}
-			}
 			gameStateMutex.unlock();
             break;
         }
 
-		{
-			clientPacketQueueMutex.lock();
-			packet.clientFD = clientFD;
+		clientPacketQueueMutex.lock();
 			currentPacketQueue.push_back(packet);
 			recievedClientPackets.push_back(packet);
-			clientPacketQueueMutex.unlock();
-		}
+		clientPacketQueueMutex.unlock();
 
-        if(res < 0) return_error("recv error on ClientFD %d", clientFD);
+        if (res < 0) 
+			return_error("recv error on ClientFD %d", clientFD);
     }
 
     close(clientFD);
@@ -98,12 +99,13 @@ void acceptClients(int serverSocket) {
 				}
 			} else {
 				gameStateMutex.unlock();
-				// send full 
 				fromServerPacket packet;
 				packet.packetType = PACKET_SERVER_FULL;
 				snprintf(packet.message, sizeof packet.message, "Server is full (max of %d players)", MAX_PLAYERS);
 				packet.ID = -1;
-				send(clientFD, &packet, sizeof packet, 0);
+				int res = sendAll(clientFD, &packet, sizeof packet, 0);
+				if (res <= 0) return_error("sendAll error...");
+
 				close(clientFD);
 				continue;
 			}
@@ -115,9 +117,10 @@ void acceptClients(int serverSocket) {
 		fromServerPacket packet;
 		packet.packetType = PACKET_SEND_ID;
 		packet.ID = id;
-		send(clientFD, &packet, sizeof packet, 0);
+		int res = sendAll(clientFD, &packet, sizeof packet, 0);
+		if (res <= 0) return_error("sendAll error...");
 
-		std::thread singleClientThread(processSingleClient, clientFD, FDtoID[clientFD]);
+		std::thread singleClientThread(processClientPackets, clientFD, FDtoID[clientFD]);
 		singleClientThread.detach();
 	}
 }
@@ -190,12 +193,12 @@ int main(int argc, char** argv) {
 bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& currentPacketQueue) {
 	// handle game loop
 	// PACKET HANDLING
+
 	int i = 0;
 	for(auto& packet : currentPacketQueue) {
 		// handle each queued client packet
-		if(packet.packetType == PACKET_SEND_MOVE) {
-			printf("%d. packet (%d) SEND_MOVE: %d\n", ++i, packet.clientFD, packet.chosenMove);
-		}
+		if(packet.packetType == PACKET_SEND_MOVE)
+			printf("Client %d: PACKET_MOVE\n", packet.clientFD);
 	}
 
 	// empty queue
