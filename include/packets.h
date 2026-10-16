@@ -28,6 +28,7 @@ struct fromClientPacket {
 	// arbitrary data
 	PACKET_TYPE packetType;
 	// only server thing
+	int clientID;
 	int clientFD;
 
 	int chosenMove;

@@ -49,7 +49,6 @@ void handleClientPackets(int clientFD, int clientID) {
         char buffer[256] = {};
 		fromClientPacket packet;
         ssize_t res = recvAll(clientFD, &packet, sizeof(packet), 0);
-		packet.clientFD = clientFD;
 
 		// error handling
         if (res == 0) {
@@ -57,6 +56,8 @@ void handleClientPackets(int clientFD, int clientID) {
         }
 
 		{ // misc handling
+			packet.clientFD = clientFD;
+			packet.clientID = clientID;
 		}
 
 		clientPacketQueueMutex.lock();
@@ -163,7 +164,7 @@ int main(int argc, char** argv) {
 		int y = 0;
 		int i = 0;
 		for(auto& packet : recievedClientPackets){
-			DrawText(TextFormat("%d. packet (ClientFD: %d) SEND_MOVE: %d\n", ++i, packet.clientFD, packet.chosenMove),
+			DrawText(TextFormat("%d. packet (ClientID: %d) SEND_MOVE: %d\n", ++i, packet.clientID, packet.chosenMove),
 					20, 60+y,
 					15, BLACK);
 			y+=20;
@@ -196,7 +197,7 @@ bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& current
 	for(auto& packet : currentPacketQueue) {
 		// handle each queued client packet
 		if(packet.packetType == PACKET_SEND_MOVE)
-			printf("Client %d: PACKET_MOVE\n", packet.clientFD);
+			printf("Client (%d): SEND_MOVE %d\n", packet.clientID, packet.chosenMove);
 	}
 
 	// empty queue
