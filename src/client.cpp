@@ -215,12 +215,15 @@ bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& current
 	for(auto& serverPacket : currentServerPackets) {
 		// handle each queued server packet
 		// gameState stuff
-		if(serverPacket.packetType == PACKET_SEND_ID)
+		if(serverPacket.packetType == PACKET_SEND_ID) {
 			clientID = serverPacket.providedPlayerID;
-		if(serverPacket.packetType == PACKET_SEND_GAME_STATE)
+		}
+		if(serverPacket.packetType == PACKET_SEND_GAME_STATE) {
 			gameState = serverPacket.gameState;
-		if(serverPacket.packetType == PACKET_SEND_MESSAGE)
+		}
+		if(serverPacket.packetType == PACKET_SEND_MESSAGE) {
 			printf("%s", serverPacket.message);
+		}
 
 		// handle server responses
 		if(serverPacket.packetType == PACKET_INFORM_PLAYER_TURN)

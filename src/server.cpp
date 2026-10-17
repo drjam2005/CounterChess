@@ -44,6 +44,7 @@
 GameState gameState;
 std::mutex gameStateMutex;
 std::atomic<bool> queueExit{false};
+bool broadcastGameState = false;
 
 // queued packets
 std::vector<fromClientPacket> recievedClientPackets;
@@ -105,6 +106,8 @@ void queueGameState(const GameState& state) {
 		packet.receivingFD = state.playerIDtoFD[i];
 		queuePacket(packet);
 	}
+
+	broadcastGameState = false;
 }
 
 void handleClientDisconnect(int clientFD, int clientID);
@@ -305,14 +308,14 @@ void handleClientDisconnect(int clientFD, int clientID) {
 			}
 		}
 		if (!queueExit)
-			queueGameState(gameState);
+			broadcastGameState = true;
 	gameStateMutex.unlock();
 } 
 
 bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& currentPacketQueue) {
 	// handle game loop
 	// PACKET HANDLING
-	bool broadcastGameState = false;
+	broadcastGameState = false;
 	for(auto& packet : currentPacketQueue) {
 		// handle each queued client packet
 		if(packet.packetType == PACKET_SEND_MOVE) {
