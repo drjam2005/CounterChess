@@ -27,6 +27,7 @@
 		fprintf(stderr, "%s:%d: ", __FILE__, __LINE__);\
 		fprintf(stderr, __VA_ARGS__); \
 		fputc('\n', stderr); \
+		if(errno != 0) perror("ERROR");\
 		exit(1); \
 	} while(0)
 
@@ -181,13 +182,8 @@ bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& current
 	// PACKET HANDLING
 	for(auto& serverPacket : currentServerPackets) {
 		// handle each queued server packet
-		// gameState stuff
 		if(serverPacket.packetType == PACKET_SEND_ID)
 			clientID = serverPacket.providedPlayerID;
-		if(serverPacket.packetType == PACKET_SEND_GAME_STATE)
-			gameState = serverPacket.gameState;
-
-		// handle server responses
  	}
 
 	// empty queue

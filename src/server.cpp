@@ -27,16 +27,8 @@
 		fprintf(stderr, "%s:%d: ", __FILE__, __LINE__);\
 		fprintf(stderr, __VA_ARGS__); \
 		fputc('\n', stderr);\
-		perror("ERROR");\
+		if(errno != 0) perror("ERROR");\
 		exit(1); \
-	} while(0)
-
-#define swap_turn(state) \
-	do {\
-		if(state.currentPlayerIDTurn == 1)\
-			state.currentPlayerIDTurn = 2;\
-		else \
-			state.currentPlayerIDTurn = 1;\
 	} while(0)
 
 // global variables
@@ -44,6 +36,7 @@
 GameState gameState;
 std::mutex gameStateMutex;
 std::atomic<bool> queueExit{false};
+bool broadcastGameState = false;
 
 // queued packets
 std::vector<fromClientPacket> recievedClientPackets;
@@ -61,10 +54,18 @@ void queuePacket(const fromServerPacket& packet) {
 	toClientPacketQueueReady.notify_one();
 }
 
-void queuePacketAll(const fromServerPacket& packet) {
+void queuePacketAll(const fromServerPacket& packet, const GameState& state) {
 	fromServerPacket tempPacket = packet;
-	for (int i = 1; i <= MAX_PLAYERS; ++i) {
-		tempPacket.receivingFD = gameState.playerIDtoFD[i];
+	int clientFDs[MAX_PLAYERS];
+
+	for (int i = 0; i < MAX_PLAYERS; ++i)
+		clientFDs[i] = state.playerIDtoFD[i + 1];
+
+	for (int i = 0; i < MAX_PLAYERS; ++i) {
+		int clientFD = clientFDs[i];
+		if (clientFD == 0)
+			continue;
+		tempPacket.receivingFD = clientFD;
 		queuePacket(tempPacket);
 	}
 }
@@ -97,6 +98,8 @@ void queueGameState(const GameState& state) {
 		packet.receivingFD = state.playerIDtoFD[i];
 		queuePacket(packet);
 	}
+
+	broadcastGameState = false;
 }
 
 void handleClientDisconnect(int clientFD, int clientID);
@@ -288,14 +291,14 @@ void handleClientDisconnect(int clientFD, int clientID) {
 			}
 		}
 		if (!queueExit)
-			queueGameState(gameState);
+			broadcastGameState = true;
 	gameStateMutex.unlock();
 } 
 
 bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& currentPacketQueue) {
 	// handle game loop
 	// PACKET HANDLING
-	bool broadcastGameState = false;
+	broadcastGameState = false;
 	for(auto& packet : currentPacketQueue) {
 		// handle each queued client packet
 		if(packet.packetType == PACKET_SEND_MOVE) {
