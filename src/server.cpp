@@ -31,14 +31,6 @@
 		exit(1); \
 	} while(0)
 
-#define swap_turn(state) \
-	do {\
-		if(state.currentPlayerIDTurn == 1)\
-			state.currentPlayerIDTurn = 2;\
-		else \
-			state.currentPlayerIDTurn = 1;\
-	} while(0)
-
 // global variables
 // game state
 GameState gameState;
@@ -269,7 +261,6 @@ int main(int argc, char** argv) {
 
 		DrawText("This is server\n", 20, 20, FONT_SIZE, BLACK);
 		DrawText(TextFormat("Player Count: %d\n", stateSnapshot.currentPlayerCount), 20, 40, FONT_SIZE, BLACK);
-		DrawText(TextFormat("Current turn: %d\n", stateSnapshot.currentPlayerIDTurn), 20, 60, FONT_SIZE, BLACK);
 
 		int y = 0;
 		int i = 0;
@@ -319,21 +310,9 @@ bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& current
 	for(auto& packet : currentPacketQueue) {
 		// handle each queued client packet
 		if(packet.packetType == PACKET_SEND_MOVE) {
-			if (gameState.currentPlayerIDTurn != packet.clientID) {
-				fromServerPacket serverPacket = {};
-				serverPacket.packetType = PACKET_INFORM_PLAYER_NOT_TURN;
-				serverPacket.receivingFD = packet.clientFD;
-				queuePacket(serverPacket);
+			printf("Client (%d): SEND_MOVE %d\n", packet.clientID, packet.chosenMove);
 
-				printf("Client (%d): SEND_MOVE %d (NOT THEIR TURN)\n", packet.clientID, packet.chosenMove);
-			} else {
-				printf("Client (%d): SEND_MOVE %d (THEIR TURN)\n", packet.clientID, packet.chosenMove);
-
-				// swap turn
-				swap_turn(gameState);
-				// send all players the current game state
-				broadcastGameState = true;
-			}
+			broadcastGameState = true;
 		}
 		if(packet.packetType == PACKET_SEND_MESSAGE) {
 			fromServerPacket serverPacket = {};

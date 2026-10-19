@@ -151,12 +151,6 @@ int main(int argc, char** argv) {
 		ClearBackground(WHITE);
 		DrawText(TextFormat("My ID: %d", clientID), 20, 20, FONT_SIZE, BLACK);
 
-		if (gameState.currentPlayerIDTurn == clientID) {
-			DrawText("YOUR TURN", 20, 40, FONT_SIZE, GREEN);
-		} else {
-			DrawText("NOT YOUR TURN", 20, 40, FONT_SIZE, RED);
-		}
-
 		if (GuiButton((Rectangle){ 20, 100, 50, 40 }, "Send 1")) {
 			fromClientPacket myPacket = {};
 			myPacket.packetType = PACKET_SEND_MOVE;
@@ -172,28 +166,6 @@ int main(int argc, char** argv) {
 			myPacket.chosenMove = 2;
 
 			queuePacket(myPacket);
-        }
-
-		if (GuiTextBox(
-            (Rectangle){ 20, 200, 200, 40 },
-            messageBox,
-            sizeof(messageBox),
-            messageEditMode
-        )) {
-			messageEditMode = !messageEditMode;
-		};
-
-        if (GuiButton((Rectangle){ 20, 250, 70, 40 }, "send")) {
-			// queue message
-			if(strlen(messageBox)) {
-				fromClientPacket packet = {};
-				packet.packetType = PACKET_SEND_MESSAGE;
-				strcpy(packet.message, messageBox);
-
-				queuePacket(packet);
-			}
-
-			messageBox[0] = '\0';
         }
 
 		EndDrawing();
@@ -214,22 +186,8 @@ bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& current
 	// PACKET HANDLING
 	for(auto& serverPacket : currentServerPackets) {
 		// handle each queued server packet
-		// gameState stuff
-		if(serverPacket.packetType == PACKET_SEND_ID) {
+		if(serverPacket.packetType == PACKET_SEND_ID)
 			clientID = serverPacket.providedPlayerID;
-		}
-		if(serverPacket.packetType == PACKET_SEND_GAME_STATE) {
-			gameState = serverPacket.gameState;
-		}
-		if(serverPacket.packetType == PACKET_SEND_MESSAGE) {
-			printf("%s", serverPacket.message);
-		}
-
-		// handle server responses
-		if(serverPacket.packetType == PACKET_INFORM_PLAYER_TURN)
-			gameState.currentPlayerIDTurn = serverPacket.providedPlayerID;
-		if(serverPacket.packetType == PACKET_INFORM_PLAYER_NOT_TURN)
-			printf("Not your turn... dummy...\n");
  	}
 
 	// empty queue
