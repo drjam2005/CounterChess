@@ -1,3 +1,9 @@
-# OS server-client chatting thing
+# OS server-client communications template
 
-for quick little study and for fun :3
+This repo can serve as some kind of `template` for possible server-client communications
+
+May not be the best, but could be useful
+
+> [!WARNING]
+> VERY INCOMPLETE!!!
+> Will mainly be used for OS project
