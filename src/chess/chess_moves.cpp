@@ -90,6 +90,40 @@ MoveResult isValidRookMove(const ChessBoard board, PiecePosition start, PiecePos
 	if(end.x != start.x || end.y != start.y)
 		return MOVE_INVALID_OUT_OF_RANGE;
 
+	if (end.x > start.x) {
+		// target to the right
+		for(size_t x = start.x; x != end.x-1; ++x) {
+			if(getPieceAt(board, {x, start.y}).type != PIECE_NONE)
+				return MOVE_INVALID_HAS_OBSTACLE;
+		}
+	} else if (end.x < start.x) {
+		// target to the left
+		for(size_t x = start.x; x != end.x+1; --x) {
+			if(getPieceAt(board, {x, start.y}).type != PIECE_NONE)
+				return MOVE_INVALID_HAS_OBSTACLE;
+		}
+	}
+
+	if (end.y > start.y) {
+		// target to the top
+		for(size_t y = start.y; y != end.y-1; ++y) {
+			if(getPieceAt(board, {y, start.y}).type != PIECE_NONE)
+				return MOVE_INVALID_HAS_OBSTACLE;
+		}
+	} else if (end.y < start.y) {
+		// target to the bottom
+		for(size_t y = start.y; y != end.y+1; --y) {
+			if(getPieceAt(board, {y, start.y}).type != PIECE_NONE)
+				return MOVE_INVALID_HAS_OBSTACLE;
+		}
+	}
+
+	if(rook.color == target.color)
+		return MOVE_INVALID_SAME_COLOR;
+
+	if(rook.color != target.color)
+		return MOVE_VALID_CAPTURE;
+
 	return MOVE_VALID;
 }
 
@@ -110,9 +144,11 @@ MoveResult isValidKnightMove(const ChessBoard board, PiecePosition start, PieceP
         return MOVE_INVALID_OUT_OF_RANGE;
 
     // Cannot capture a piece of the same color
-    if (target.type != PIECE_NONE &&
-        knight.color == target.color)
+    if (target.type != PIECE_NONE && knight.color == target.color)
         return MOVE_INVALID_SAME_COLOR;
+
+	if (knight.color != target.color)
+		return MOVE_VALID_CAPTURE;
 
     return MOVE_VALID;
 }
