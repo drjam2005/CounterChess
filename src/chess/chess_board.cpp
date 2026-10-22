@@ -48,9 +48,9 @@ MoveResult movePiece(ChessBoard& board, PiecePosition start, PiecePosition end) 
 	if(!checkMoveRange(board, start, end))
 		return MOVE_INVALID_OUT_OF_RANGE;
 
-	MoveResult isValid;
-	ChessPiece& piece = board.pieces[start.y][start.x];
-	ChessPiece& target = board.pieces[end.y][end.x];
+	MoveResult isValid = MOVE_INVALID;
+	ChessPiece piece = board.pieces[start.y][start.x];
+	ChessPiece target = board.pieces[end.y][end.x];
 	switch (piece.type) {
 		case PIECE_PAWN:
 			isValid = isValidPawnMove(board, start, end);
@@ -75,8 +75,10 @@ MoveResult movePiece(ChessBoard& board, PiecePosition start, PiecePosition end) 
 	}
 
 	// (FOR TESTING)
-		if(isValid >= MOVE_VALID) piece.hasMoved = true;
-		if(isValid >= MOVE_VALID) std::swap(piece, target);
+		if(isValid >= MOVE_VALID) {
+			board.pieces[start.y][start.x].type = PIECE_NONE;
+			board.pieces[end.y][end.x] = piece;
+		}
 	//
 
 	return isValid;

@@ -1,5 +1,8 @@
 # for all
-all: ./build/client ./build/server
+all: chess network
+
+# for network
+network: ./build/client ./build/server
 
 # for Chess
 chess: ./build/chessMain
