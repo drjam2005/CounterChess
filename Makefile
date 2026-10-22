@@ -9,11 +9,11 @@ server: ./build/server
 # for Chess
 chess: ./build/chessMain
 
-./build/client: ./build/client.o ./build/helpers.o | ./build/
-	g++ ./build/client.o ./build/helpers.o -o ./build/client -L ./vendor/X11/lib -L ./vendor/raylib/lib/ -Wl,-rpath,./vendor/X11/lib -l:libraylib.a -lX11
+./build/client: ./build/client.o ./build/helpers.o ./build/chess_board.o ./build/chess_moves.o | ./build/
+	g++ ./build/client.o ./build/helpers.o ./build/chess_board.o ./build/chess_moves.o -o ./build/client -L ./vendor/X11/lib -L ./vendor/raylib/lib/ -Wl,-rpath,./vendor/X11/lib -l:libraylib.a -lX11
 
-./build/server: ./build/server.o ./build/helpers.o | ./build/
-	g++ ./build/server.o ./build/helpers.o -o ./build/server -L ./vendor/X11/lib -L ./vendor/raylib/lib/ -Wl,-rpath,./vendor/X11/lib -l:libraylib.a -lX11
+./build/server: ./build/server.o ./build/helpers.o ./build/chess_board.o ./build/chess_moves.o | ./build/
+	g++ ./build/server.o ./build/helpers.o ./build/chess_board.o ./build/chess_moves.o -o ./build/server -L ./vendor/X11/lib -L ./vendor/raylib/lib/ -Wl,-rpath,./vendor/X11/lib -l:libraylib.a -lX11
 
 ./build/client.o: ./src/client.cpp ./include/* | ./build/
 	g++ -c ./src/client.cpp -o ./build/client.o -I ./vendor/X11/include

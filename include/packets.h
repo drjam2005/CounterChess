@@ -29,6 +29,9 @@ struct fromServerPacket {
 	int receivingFD;
 	int providedPlayerID;
 	GameState gameState;
+
+	// for messages
+	int messageFromID;
 	char message[256];
 };
 

@@ -36,4 +36,5 @@ struct ChessPiece {
 	bool pawn2Stepped = false;
 };
 
+
 #endif // _CHESS_PIECE_H

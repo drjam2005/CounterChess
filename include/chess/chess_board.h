@@ -4,10 +4,10 @@
 
 #include "chess_piece.h"
 #include <unordered_map>
+#include <string>
 
 struct ChessBoard {
 	ChessPiece pieces[8][8];
-	//
 	ChessPiece previousState[8][8];
 };
 
@@ -28,6 +28,7 @@ const ChessBoard standardBoard = {
 		{ {.color = COLOR_WHITE, .type = PIECE_ROOK }, {.color = COLOR_WHITE, .type = PIECE_KNIGHT }, {.color = COLOR_WHITE, .type = PIECE_BISHOP }, {.color = COLOR_WHITE, .type = PIECE_QUEEN }, {.color = COLOR_WHITE, .type = PIECE_KING }, {.color = COLOR_WHITE, .type = PIECE_BISHOP }, {.color = COLOR_WHITE, .type = PIECE_KNIGHT }, {.color = COLOR_WHITE, .type = PIECE_ROOK} }
 	}
 };
+
 
 enum MoveResult {
 	// invalid
@@ -57,6 +58,9 @@ bool isMoveSafe(const ChessBoard& board, PiecePosition start, PiecePosition end)
 bool isCaptureSafe(const ChessBoard& board, PiecePosition start, PiecePosition end);
 MoveResult movePiece(ChessBoard& board, PiecePosition start, PiecePosition end);
 ChessPiece getPieceAt(const ChessBoard& board, PiecePosition position);
+#include <string>
+
+std::string PieceToString(PIECE_TYPE type);
 
 // check each piece
 // Pawn

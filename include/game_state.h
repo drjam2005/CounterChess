@@ -4,6 +4,9 @@
 
 #include <deque>
 
+// chess implementation
+#include "chess/chess_board.h"
+
 #define MAX_PLAYERS 2
 
 struct GameState {
@@ -13,6 +16,13 @@ struct GameState {
 	size_t currentPlayerCount = 0;
 
 	int currentPlayerIDTurn = -1;
+
+	bool gameStarted = false;
+
+	// chessBoard
+	ChessBoard currentChessBoard;
+	bool isRotated = false;
+
 };
 
 

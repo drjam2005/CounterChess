@@ -180,7 +180,10 @@ void acceptClients(int serverSocket) {
 			// check if amount of players is sufficient
 			if(gameState.currentPlayerCount == MAX_PLAYERS) {
 				// game start
+				gameState.gameStarted = true;
 				gameState.currentPlayerIDTurn = 1;
+				gameState.currentChessBoard = standardBoard;
+				queueGameState(gameState);
 			}
 			GameState stateSnapshot = gameState;
 
@@ -223,7 +226,7 @@ int main(int argc, char** argv) {
 
 	// initialize rendering
 	SetTraceLogLevel(LOG_NONE);
-	InitWindow(400, 600, "Server");
+	InitWindow(800, 600, "Server");
 	SetTargetFPS(60);
 	SetExitKey(KEY_NULL);
 
@@ -338,7 +341,8 @@ bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& current
 		if(packet.packetType == PACKET_SEND_MESSAGE) {
 			fromServerPacket serverPacket = {};
 			serverPacket.packetType = PACKET_SEND_MESSAGE;
-			snprintf(serverPacket.message, sizeof serverPacket.message,"Client %d: %s\n", packet.clientID, packet.message);
+			serverPacket.messageFromID = packet.clientID;
+			strcpy(serverPacket.message, packet.message);
 			queuePacketAll(serverPacket, gameState);
 		}
 	}

@@ -1,6 +1,19 @@
 #include "../../include/chess/chess_board.h"
 #include <stdio.h>
 
+std::string PieceToString(PIECE_TYPE type) {
+    switch (type) {
+        case PIECE_PAWN:   return "PA";
+        case PIECE_ROOK:   return "RO";
+        case PIECE_KNIGHT: return "KN";
+        case PIECE_BISHOP: return "BI";
+        case PIECE_QUEEN:  return "QU";
+        case PIECE_KING:   return "KI";
+        case PIECE_NONE:   return "NO";
+        default:           return "UN";
+    }
+}
+
 void print_board(const ChessBoard board) {
 	for(int y = 0; y < 8; ++y) {
 		for(int x = 0; x < 8; ++x) {
@@ -83,3 +96,4 @@ MoveResult movePiece(ChessBoard& board, PiecePosition start, PiecePosition end) 
 
 	return isValid;
 }
+

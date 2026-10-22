@@ -21,6 +21,8 @@
 #include "../vendor/raylib/include/raygui.h"
 
 #define FONT_SIZE 25
+#define PLAYER_WHITE (1)
+#define PLAYER_BLACK (2)
 
 #define return_error(...) \
 	do {\
@@ -34,11 +36,21 @@
 // global variables
 // game state
 GameState gameState;
+PiecePosition chosenStart = {-1, -1};
+PiecePosition chosenEnd = {-1, -1};
 std::mutex gameStateMutex;
 int clientID;
-char messageBox[256];
+PIECE_COLOR myColor;
+char messageBox[256] = "Message...";
 bool messageEditMode = true;
 std::atomic<bool> queueExit{false};
+
+struct RenderMessage {
+	int id;
+	std::string message;
+};
+
+std::vector<RenderMessage> gameMessages;
 
 // queued packets
 std::vector<fromServerPacket> recievedServerPackets;
@@ -81,8 +93,12 @@ void handleServerPackets(int serverFD) {
 
 		// error handling
 		if(res <= 0) return;
-		if(serverPacket.packetType == PACKET_SERVER_FULL)
+		if(serverPacket.packetType == PACKET_SERVER_FULL) {
+			queueExit = true;
+			toServerPacketsQueueReady.notify_all();
 			return_error("ERROR: %s", serverPacket.message);
+			return;
+		}
 		if(serverPacket.packetType == PACKET_SERVER_SHUTDOWN) {
 			queueExit = true;
 			toServerPacketsQueueReady.notify_all();
@@ -101,6 +117,8 @@ void handleServerPackets(int serverFD) {
 }
 
 bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& currentServerPackets);
+void updateBoard(const GameState& gameState);
+void renderBoard(const GameState& gameState);
 
 int main(int argc, char** argv) {
 	if(argc != 3) return_error("Usage: ./client <ip_address> <port_number>");
@@ -129,53 +147,44 @@ int main(int argc, char** argv) {
 
 	memset(&gameState, 0, sizeof gameState);
 	memset(messageBox, 0, sizeof messageBox);
+	strcpy(messageBox, "Message...");
 
 
 	// initialize rendering
 	SetTraceLogLevel(LOG_NONE);
-	InitWindow(300, 400, "Client Window");
-	SetTargetFPS(60);
+	InitWindow(800, 600, "Client Window");
+	//SetTargetFPS(60);
 
 	// start rendering
 	while(!queueExit) {
 		// game loop
 		if(IsKeyPressed(KEY_ESCAPE) || WindowShouldClose()) {
 			queueExit = true;
+			toServerPacketsQueueReady.notify_all();
 		}
 
 		currentServerPacketQueue.lock();
 			handleGameState(gameState, currentServerPackets);
 		currentServerPacketQueue.unlock();
 
+		updateBoard(gameState);
+
 		BeginDrawing();
 		ClearBackground(WHITE);
-		DrawText(TextFormat("My ID: %d", clientID), 20, 20, FONT_SIZE, BLACK);
+		DrawText(TextFormat("ID: %d", clientID), 10, 20, FONT_SIZE, BLACK);
 
 		if (gameState.currentPlayerIDTurn == clientID) {
-			DrawText("YOUR TURN", 20, 40, FONT_SIZE, GREEN);
+			DrawText("YOUR TURN", 80, 20, FONT_SIZE, GREEN);
 		} else {
-			DrawText("NOT YOUR TURN", 20, 40, FONT_SIZE, RED);
+			DrawText("NOT YOUR TURN", 80, 20, FONT_SIZE, RED);
 		}
 
-		if (GuiButton((Rectangle){ 20, 100, 50, 40 }, "Send 1")) {
-			fromClientPacket myPacket = {};
-			myPacket.packetType = PACKET_SEND_MOVE;
-			myPacket.chosenMove = 1;
+		// main board
+		renderBoard(gameState);
 
-			queuePacket(myPacket);
-
-        }
-
-		if (GuiButton((Rectangle){ 20, 150, 51, 40 }, "Send 2")) {
-			fromClientPacket myPacket = {};
-			myPacket.packetType = PACKET_SEND_MOVE;
-			myPacket.chosenMove = 2;
-
-			queuePacket(myPacket);
-        }
-
+		// Message stuff
 		if (GuiTextBox(
-            (Rectangle){ 20, 200, 200, 40 },
+            (Rectangle){ 550, 500, 200, 40 },
             messageBox,
             sizeof(messageBox),
             messageEditMode
@@ -183,7 +192,7 @@ int main(int argc, char** argv) {
 			messageEditMode = !messageEditMode;
 		};
 
-        if (GuiButton((Rectangle){ 20, 250, 70, 40 }, "send")) {
+        if (GuiButton((Rectangle){ 550, 550, 70, 40 }, "send")) {
 			// queue message
 			if(strlen(messageBox)) {
 				fromClientPacket packet = {};
@@ -196,6 +205,25 @@ int main(int argc, char** argv) {
 			messageBox[0] = '\0';
         }
 
+		// render all messages
+		float yStart = 460;
+		float xStart = 550;
+		int messageCount = gameMessages.size();
+
+		for (int i = 0; i < 10 && i < messageCount; ++i) {
+			int index = messageCount - 1 - i;
+
+			int messageWidth = MeasureText(gameMessages[index].message.c_str(), 20);
+
+			if (gameMessages[index].id == clientID) {
+				DrawText(gameMessages[index].message.c_str(),
+						 xStart + 200 - messageWidth, yStart - (i * 25), 20, GREEN);
+			} else {
+				DrawText(gameMessages[index].message.c_str(),
+						 xStart, yStart - (i * 25), 20, BLACK);
+			}
+		}
+		DrawFPS(20, 20);
 		EndDrawing();
 	}
 	queueExit = true;
@@ -209,6 +237,102 @@ int main(int argc, char** argv) {
 	return 0;
 }
 
+void updateBoard(const GameState& gameState) {
+    if (!gameState.gameStarted)
+        return;
+
+    if (!IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        return;
+
+    float squareSize = GetScreenHeight() / 10.0f;
+    Vector2 mouse = GetMousePosition();
+
+    int x = (int)((mouse.x - squareSize) / squareSize);
+    int y = (int)((mouse.y - squareSize) / squareSize);
+
+    if (x < 0 || x >= 8 || y < 0 || y >= 8)
+        return;
+
+    if (clientID == 2) {
+        x = 7 - x; y = 7 - y;
+    } else if (clientID != 1) {
+        return;
+    }
+
+    if (chosenStart.x == -1 && chosenStart.y == -1) {
+        chosenStart = {x, y};
+        chosenEnd = {-1, -1};
+        printf("start: %d %d\n", x, y);
+    } else {
+        chosenEnd = {x, y};
+        chosenStart = {-1, -1};
+        printf("end: %d %d\n", x, y);
+    }
+}
+
+void renderBoard(const GameState& gameState) {
+	if(!gameState.gameStarted)
+		return;
+	// scale to window
+	float squareSize = GetScreenHeight()/10.0f;
+	float xStart = squareSize, yStart = squareSize;
+
+	// render border
+	if(clientID == 1) {
+		DrawRectangleLinesEx({(float)xStart-5.0f, (float)yStart-5.0f, squareSize * 8 + 10.0f, squareSize * 8 + 10.0f}, 10.0f, BLACK);
+		for(int y = 0; y < 8; ++y) {
+			for(int x = 0; x < 8; ++x) {
+				DrawRectangle(xStart, yStart, squareSize, squareSize, (x + y) % 2 ? BLACK : WHITE);
+
+				if(chosenStart.x == x && chosenStart.y == y) {
+					DrawRectangle(xStart, yStart, squareSize, squareSize, GREEN);
+				}
+				if(chosenStart.x == x && chosenStart.y == y) {
+					DrawRectangle(xStart, yStart, squareSize, squareSize, YELLOW);
+				}
+
+				// draw the piece
+				ChessPiece piece = getPieceAt(gameState.currentChessBoard, {x, y});
+				if(piece.type != PIECE_NONE) {
+					DrawRectangle(xStart + (squareSize/5.0f), yStart + (squareSize/5.0f), squareSize - (2.0f*squareSize/5.0f), squareSize - (2.0f*squareSize/5.0f), (piece.color == COLOR_WHITE ? LIGHTGRAY : DARKGRAY));
+					DrawText(PieceToString(piece.type).c_str(), xStart + (2*squareSize/5.0f), yStart + (2*squareSize/5.0f), 17.0f, BLACK);
+				}
+
+				xStart += squareSize;
+			}
+			xStart = squareSize;
+			yStart += squareSize;
+		}
+	} else if (clientID == 2) {
+		DrawRectangleLinesEx({(float)xStart-5.0f, (float)yStart-5.0f, squareSize * 8 + 10.0f, squareSize * 8 + 10.0f}, 10.0f, BLACK);
+		for(int y = 7; y >= 0; --y) {
+			for(int x = 7; x >= 0; --x) {
+				DrawRectangle(xStart, yStart, squareSize, squareSize, (x + y) % 2 ? BLACK : WHITE);
+
+				if(chosenStart.x == x && chosenStart.y == y) {
+					DrawRectangle(xStart, yStart, squareSize, squareSize, GREEN);
+				}
+				if(chosenStart.x == x && chosenStart.y == y) {
+					DrawRectangle(xStart, yStart, squareSize, squareSize, YELLOW);
+				}
+
+				// draw the piece
+				ChessPiece piece = getPieceAt(gameState.currentChessBoard, {x, y});
+				if(piece.type != PIECE_NONE) {
+					DrawRectangle(xStart + (squareSize/5.0f), yStart + (squareSize/5.0f), squareSize - (2.0f*squareSize/5.0f), squareSize - (2.0f*squareSize/5.0f), (piece.color == COLOR_WHITE ? LIGHTGRAY : DARKGRAY));
+					DrawText(PieceToString(piece.type).c_str(), xStart + (2*squareSize/5.0f), yStart + (2*squareSize/5.0f), 17.0f, BLACK);
+				}
+
+				xStart += squareSize;
+			}
+			xStart = squareSize;
+			yStart += squareSize;
+		}
+	} else {
+		return;
+	}
+}
+
 bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& currentServerPackets) {
 	// handle game loop
 	// PACKET HANDLING
@@ -220,9 +344,14 @@ bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& current
 		}
 		if(serverPacket.packetType == PACKET_SEND_GAME_STATE) {
 			gameState = serverPacket.gameState;
+			if(gameState.gameStarted)
+				printf("game started!\n");
 		}
 		if(serverPacket.packetType == PACKET_SEND_MESSAGE) {
-			printf("%s", serverPacket.message);
+			RenderMessage msg;
+			msg.message = serverPacket.message;
+			msg.id = serverPacket.messageFromID;
+			gameMessages.push_back(msg);
 		}
 
 		// handle server responses
