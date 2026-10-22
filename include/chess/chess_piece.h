@@ -13,6 +13,8 @@ enum PIECE_COLOR {
 
 enum PIECE_TYPE {
 	PIECE_NONE,
+	// for error handling
+	PIECE_INVALID,
 
 	PIECE_PAWN,
 	PIECE_KNIGHT,

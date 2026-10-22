@@ -36,7 +36,12 @@ enum MoveResult {
 	MOVE_VALID_CHECK,
 
 	// invalid
+	MOVE_INVALID,
+	MOVE_INVALID_OUT_OF_RANGE,
+	MOVE_INVALID_SAME_COLOR,
 	MOVE_INVALID_CHECK,
+	MOVE_INVALID_HAS_MOVED,
+	MOVE_INVALID_HAS_OBSTACLE,
 
 	MOVE_COUNT
 };
@@ -44,21 +49,23 @@ enum MoveResult {
 
 // general
 void print_board(const ChessBoard board);
-bool checkRange(const ChessBoard board, PiecePosition start, PiecePosition end);
+bool checkRange(const ChessBoard board, PiecePosition pos);
+bool checkMoveRange(const ChessBoard board, PiecePosition start, PiecePosition end);
 bool movePiece(ChessBoard& board, PiecePosition start, PiecePosition end);
+ChessPiece getPieceAt(const ChessBoard& board, PiecePosition position);
 
 // check each piece
 // Pawn
-bool isValidPawnMove(const ChessBoard board, PiecePosition start, PiecePosition end);
+MoveResult isValidPawnMove(const ChessBoard board, PiecePosition start, PiecePosition end);
 // Rook
-bool isValidRookMove(const ChessBoard board, PiecePosition start, PiecePosition end);
+MoveResult isValidRookMove(const ChessBoard board, PiecePosition start, PiecePosition end);
 // Knight
-bool isValidKnightMove(const ChessBoard board, PiecePosition start, PiecePosition end);
+MoveResult isValidKnightMove(const ChessBoard board, PiecePosition start, PiecePosition end);
 // Bishop
-bool isValidBishopMove(const ChessBoard board, PiecePosition start, PiecePosition end);
+MoveResult isValidBishopMove(const ChessBoard board, PiecePosition start, PiecePosition end);
 // King
-bool isValidKingMove(const ChessBoard board, PiecePosition start, PiecePosition end);
+MoveResult isValidKingMove(const ChessBoard board, PiecePosition start, PiecePosition end);
 // Queen
-bool isValidQueenMove(const ChessBoard board, PiecePosition start, PiecePosition end);
+MoveResult isValidQueenMove(const ChessBoard board, PiecePosition start, PiecePosition end);
 
 #endif // _CHESS_BOARD_H
