@@ -29,7 +29,9 @@ struct ChessPiece {
 	PIECE_COLOR color;
 	PIECE_TYPE type;
 
+	PIECE_TYPE previousType;
 	bool hasMoved = false;
+	bool pawn2Stepped = false;
 };
 
 #endif // _CHESS_PIECE_H

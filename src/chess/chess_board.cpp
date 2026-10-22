@@ -74,8 +74,10 @@ bool movePiece(ChessBoard& board, PiecePosition start, PiecePosition end) {
 			break;
 	}
 
-	// temp
-	std::swap(piece, target);
+	// (FOR TESTING)
+		if(isValid) piece.hasMoved = true;
+		if(isValid) std::swap(piece, target);
+	//
 
 	return isValid;
 }

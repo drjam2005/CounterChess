@@ -7,6 +7,8 @@
 
 struct ChessBoard {
 	ChessPiece pieces[8][8];
+	//
+	ChessPiece previousState[8][8];
 };
 
 struct PiecePosition {
@@ -26,6 +28,19 @@ const ChessBoard standardBoard = {
 		{ {.color = COLOR_WHITE, .type = PIECE_ROOK }, {.color = COLOR_WHITE, .type = PIECE_KNIGHT }, {.color = COLOR_WHITE, .type = PIECE_BISHOP }, {.color = COLOR_WHITE, .type = PIECE_QUEEN }, {.color = COLOR_WHITE, .type = PIECE_KING }, {.color = COLOR_WHITE, .type = PIECE_BISHOP }, {.color = COLOR_WHITE, .type = PIECE_KNIGHT }, {.color = COLOR_WHITE, .type = PIECE_ROOK} }
 	}
 };
+
+enum MoveResult {
+	// valid
+	MOVE_VALID = 0,
+	MOVE_VALID_CAPTURE,
+	MOVE_VALID_CHECK,
+
+	// invalid
+	MOVE_INVALID_CHECK,
+
+	MOVE_COUNT
+};
+
 
 // general
 void print_board(const ChessBoard board);

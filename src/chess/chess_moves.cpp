@@ -1,4 +1,5 @@
 #include "../../include/chess/chess_board.h"
+#include <math.h>
 
 bool checkRange(const ChessBoard board, PiecePosition start, PiecePosition end) {
 	if (start.x < 0 || end.x < 0 || start.x >= 8 || end.x >= 8)
@@ -17,6 +18,32 @@ bool isValidPawnMove(const ChessBoard board, PiecePosition start, PiecePosition 
 
 	ChessPiece pawn = board.pieces[start.y][start.x];
 	ChessPiece target = board.pieces[end.y][end.x];
+
+	if(pawn.color == target.color) 
+		return false;
+
+	if(pawn.color == COLOR_WHITE) {
+		if(start.x == end.x) {
+			if(end.y == start.y - 2) {
+				if(pawn.hasMoved)
+					return false;
+
+				if(board.pieces[start.y-1][start.x].type != PIECE_NONE)
+					return false;
+
+				return true;
+			} if(end.y == start.y - 1) {
+				if(board.pieces[start.y-1][start.x].type != PIECE_NONE)
+					return false;
+
+				return true;
+			}
+		}
+		//
+	} else if (pawn.color == COLOR_BLACK) {
+		//
+	}
+
 	return true;
 }
 
