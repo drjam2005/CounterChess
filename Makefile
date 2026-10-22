@@ -2,7 +2,9 @@
 all: chess network
 
 # for network
-network: ./build/client ./build/server
+network: client server
+client: ./build/client
+server: ./build/server
 
 # for Chess
 chess: ./build/chessMain
