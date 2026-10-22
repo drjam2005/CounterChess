@@ -41,6 +41,22 @@ bool isValidPawnMove(const ChessBoard board, PiecePosition start, PiecePosition 
 		}
 		//
 	} else if (pawn.color == COLOR_BLACK) {
+		if(start.x == end.x) {
+			if(end.y == start.y + 2) {
+				if(pawn.hasMoved)
+					return false;
+
+				if(board.pieces[start.y+1][start.x].type != PIECE_NONE)
+					return false;
+
+				return true;
+			} if(end.y == start.y + 1) {
+				if(board.pieces[start.y+1][start.x].type != PIECE_NONE)
+					return false;
+
+				return true;
+			}
+		}
 		//
 	}
 
