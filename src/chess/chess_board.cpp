@@ -45,7 +45,7 @@ void print_board(const ChessBoard board) {
 }
 
 bool movePiece(ChessBoard& board, PiecePosition start, PiecePosition end) {
-	if(!checkRange(board, start, end))
+	if(!checkMoveRange(board, start, end))
 		return false;
 
 	bool isValid = false;
