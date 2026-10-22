@@ -4,7 +4,8 @@
 int main(void) {
 	ChessBoard board = standardBoard;
 	printf("size of board: %lu\n", sizeof board);
-	if(movePiece(board, {1, 6}, {1, 4})) {
+
+	if(movePiece(board, {1, 6}, {1, 4}) >= MOVE_VALID) {
 		printf("valid\n");
 	} else {
 		printf("invalid\n");
@@ -13,12 +14,13 @@ int main(void) {
 	print_board(board);
 
 	printf("\n");
-	if(movePiece(board, {1, 4}, {1, 2})) {
+	if(movePiece(board, {1, 4}, {1, 2}) >= MOVE_VALID) {
 		printf("valid\n");
 	} else {
 		printf("invalid\n");
 	}
 	printf("\n");
+
 	print_board(board);
 	printf("\n");
 

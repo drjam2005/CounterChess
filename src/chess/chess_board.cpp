@@ -44,11 +44,11 @@ void print_board(const ChessBoard board) {
 	}
 }
 
-bool movePiece(ChessBoard& board, PiecePosition start, PiecePosition end) {
+MoveResult movePiece(ChessBoard& board, PiecePosition start, PiecePosition end) {
 	if(!checkMoveRange(board, start, end))
-		return false;
+		return MOVE_INVALID_OUT_OF_RANGE;
 
-	bool isValid = false;
+	MoveResult isValid;
 	ChessPiece& piece = board.pieces[start.y][start.x];
 	ChessPiece& target = board.pieces[end.y][end.x];
 	switch (piece.type) {
@@ -75,8 +75,8 @@ bool movePiece(ChessBoard& board, PiecePosition start, PiecePosition end) {
 	}
 
 	// (FOR TESTING)
-		if(isValid) piece.hasMoved = true;
-		if(isValid) std::swap(piece, target);
+		if(isValid >= MOVE_VALID) piece.hasMoved = true;
+		if(isValid >= MOVE_VALID) std::swap(piece, target);
 	//
 
 	return isValid;
