@@ -230,7 +230,6 @@ int main(int argc, char** argv) {
 						 xStart, yStart - (i * 25), 20, BLACK);
 			}
 		}
-		DrawFPS(20, 20);
 		EndDrawing();
 	}
 	queueExit = true;
