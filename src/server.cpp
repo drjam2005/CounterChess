@@ -182,7 +182,7 @@ void acceptClients(int serverSocket) {
 				// game start
 				gameState.gameStarted = true;
 				gameState.currentPlayerIDTurn = 1;
-				gameState.currentColorTurn = (int)COLOR_WHITE;
+				gameState.currentColorTurn = COLOR_WHITE;
 				gameState.currentChessBoard = standardBoard;
 				queueGameState(gameState);
 			}
@@ -337,27 +337,30 @@ bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& current
 				printf("Client (%d): SEND_MOVE (%d %d) -> (%d %d) (NOT THEIR TURN)\n", packet.clientID, packet.chosenStart.x, packet.chosenStart.y, packet.chosenEnd.x, packet.chosenEnd.y);
 			} else {
 				printf("Client (%d): SEND_MOVE (%d %d) -> (%d %d) (THEIR TURN)\n", packet.clientID, packet.chosenStart.x, packet.chosenStart.y, packet.chosenEnd.x, packet.chosenEnd.y);
-
-				// update game state
-				printf("test\n");
-				MoveResult res = movePiece(gameState.currentChessBoard, packet.chosenStart, packet.chosenEnd);
-				if ( res < MOVE_VALID ) {
+				if (getPieceAt(gameState.currentChessBoard, packet.chosenStart).color != gameState.playerIDtoColor[packet.clientID]) {
 					printf("MOVE INVALID!!!\n");
 				} else {
-					printf("MOVE VALID!!!\n");
-					bool isWhiteChecked = isKingChecked(gameState.currentChessBoard, COLOR_WHITE);
-					bool isBlackChecked = isKingChecked(gameState.currentChessBoard, COLOR_BLACK);
+					MoveResult res = movePiece(gameState.currentChessBoard, packet.chosenStart, packet.chosenEnd);
+					if ( res < MOVE_VALID ) {
+						printf("MOVE INVALID!!!\n");
+					} else {
+						printf("MOVE VALID!!!\n");
+						bool isWhiteChecked = isKingChecked(gameState.currentChessBoard, COLOR_WHITE);
+						bool isBlackChecked = isKingChecked(gameState.currentChessBoard, COLOR_BLACK);
 
-					if(isWhiteChecked)
-						gameState.checkedColor = COLOR_WHITE;
-					else if(isBlackChecked)
-						gameState.checkedColor = COLOR_BLACK;
-					else
-						gameState.checkedColor = COLOR_NONE;
+						if(isWhiteChecked)
+							gameState.checkedColor = COLOR_WHITE;
+						else if(isBlackChecked)
+							gameState.checkedColor = COLOR_BLACK;
+						else
+							gameState.checkedColor = COLOR_NONE;
 
-					swap_turn(gameState);
-					queueGameState(gameState);
+						swap_turn(gameState);
+						queueGameState(gameState);
+					}
 				}
+
+				// update game state
 				// send all players the current game state
 			}
 		}

@@ -61,9 +61,12 @@ bool isCaptureSafe(const ChessBoard& board, PiecePosition start, PiecePosition e
 bool isPiecePresent(const ChessBoard& board, PiecePosition position);
 MoveResult movePiece(ChessBoard& board, PiecePosition start, PiecePosition end);
 ChessPiece getPieceAt(const ChessBoard& board, PiecePosition position);
-#include <string>
 
+#include <string>
 std::string PieceToString(PIECE_TYPE type);
+
+#include <vector>
+std::vector<PiecePosition> GetAvailableMoves(const ChessBoard& board, PiecePosition pos);
 
 // check each piece
 // Pawn

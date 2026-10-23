@@ -17,8 +17,13 @@
 #include "../include/packets.h"
 #include "../include/helpers.h"
 #include "../vendor/raylib/include/raylib.h"
+#define RAYGUI_CUSTOM_ICONS
+#define RAYGUI_ICON_MAX_FONT_BACKED 257
+#define RAYGUI_ICON_FONT_ATLAS_PADDING 1
+#include "../include/chess/chess_piece_iconset.h"
 #define RAYGUI_IMPLEMENTATION
 #include "../vendor/raylib/include/raygui.h"
+#include "../include/render_assets.h"
 
 #define FONT_SIZE 25
 
@@ -116,7 +121,6 @@ void handleServerPackets(int serverFD) {
 
 bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& currentServerPackets);
 void updateBoard(const GameState& gameState);
-void renderBoard(const GameState& gameState);
 
 int main(int argc, char** argv) {
 	if(argc != 3) return_error("Usage: ./client <ip_address> <port_number>");
@@ -178,11 +182,16 @@ int main(int argc, char** argv) {
 		}
 
 		// main board
-		renderBoard(gameState);
+		RenderInfo info = {
+			.chosenStart = chosenStart,
+			.playerColor = myColor
+		};
+
+		renderBoard(gameState, info);
 
 		// Message stuff
 		if (GuiTextBox(
-            (Rectangle){ 550, 500, 200, 40 },
+            (Rectangle){ 560, 500, 200, 40 },
             messageBox,
             sizeof(messageBox),
             messageEditMode
@@ -190,7 +199,7 @@ int main(int argc, char** argv) {
 			messageEditMode = !messageEditMode;
 		};
 
-        if (GuiButton((Rectangle){ 550, 550, 70, 40 }, "send")) {
+        if (GuiButton((Rectangle){ 560, 550, 70, 40 }, "send")) {
 			// queue message
 			if(strlen(messageBox)) {
 				fromClientPacket packet = {};
@@ -275,75 +284,6 @@ void updateBoard(const GameState& gameState) {
         chosenStart = {-1, -1};
         //printf("end: %d %d\n", x, y);
     }
-}
-
-void renderBoard(const GameState& gameState) {
-	if(!gameState.gameStarted)
-		return;
-	// scale to window
-	float squareSize = GetScreenHeight()/10.0f;
-	float xStart = squareSize, yStart = squareSize;
-
-	// render border
-	if(myColor == COLOR_WHITE) {
-		DrawRectangleLinesEx({(float)xStart-5.0f, (float)yStart-5.0f, squareSize * 8 + 10.0f, squareSize * 8 + 10.0f}, 10.0f, BLACK);
-		for(int y = 0; y < 8; ++y) {
-			for(int x = 0; x < 8; ++x) {
-				DrawRectangle(xStart, yStart, squareSize, squareSize, (x + y) % 2 ? BLACK : WHITE);
-
-				if(chosenStart.x == x && chosenStart.y == y) {
-					DrawRectangle(xStart, yStart, squareSize, squareSize, GREEN);
-				}
-				if(chosenStart.x == x && chosenStart.y == y) {
-					DrawRectangle(xStart, yStart, squareSize, squareSize, YELLOW);
-				}
-
-				// draw the piece
-				ChessPiece piece = getPieceAt(gameState.currentChessBoard, {x, y});
-				if(piece.type == PIECE_KING && gameState.checkedColor == piece.color) {
-					DrawRectangle(xStart, yStart, squareSize, squareSize, RED);
-				}
-				if(piece.type != PIECE_NONE) {
-					DrawRectangle(xStart + (squareSize/5.0f), yStart + (squareSize/5.0f), squareSize - (2.0f*squareSize/5.0f), squareSize - (2.0f*squareSize/5.0f), (piece.color == COLOR_WHITE ? LIGHTGRAY : DARKGRAY));
-					DrawText(PieceToString(piece.type).c_str(), xStart + (2*squareSize/5.0f), yStart + (2*squareSize/5.0f), 17.0f, BLACK);
-				}
-
-				xStart += squareSize;
-			}
-			xStart = squareSize;
-			yStart += squareSize;
-		}
-	} else if (myColor == COLOR_BLACK) {
-		DrawRectangleLinesEx({(float)xStart-5.0f, (float)yStart-5.0f, squareSize * 8 + 10.0f, squareSize * 8 + 10.0f}, 10.0f, BLACK);
-		for(int y = 7; y >= 0; --y) {
-			for(int x = 7; x >= 0; --x) {
-				DrawRectangle(xStart, yStart, squareSize, squareSize, (x + y) % 2 ? BLACK : WHITE);
-
-				if(chosenStart.x == x && chosenStart.y == y) {
-					DrawRectangle(xStart, yStart, squareSize, squareSize, GREEN);
-				}
-				if(chosenStart.x == x && chosenStart.y == y) {
-					DrawRectangle(xStart, yStart, squareSize, squareSize, YELLOW);
-				}
-
-				// draw the piece
-				ChessPiece piece = getPieceAt(gameState.currentChessBoard, {x, y});
-				if(piece.type == PIECE_KING && gameState.checkedColor == piece.color) {
-					DrawRectangle(xStart, yStart, squareSize, squareSize, RED);
-				}
-				if(piece.type != PIECE_NONE) {
-					DrawRectangle(xStart + (squareSize/5.0f), yStart + (squareSize/5.0f), squareSize - (2.0f*squareSize/5.0f), squareSize - (2.0f*squareSize/5.0f), (piece.color == COLOR_WHITE ? LIGHTGRAY : DARKGRAY));
-					DrawText(PieceToString(piece.type).c_str(), xStart + (2*squareSize/5.0f), yStart + (2*squareSize/5.0f), 17.0f, BLACK);
-				}
-
-				xStart += squareSize;
-			}
-			xStart = squareSize;
-			yStart += squareSize;
-		}
-	} else {
-		return;
-	}
 }
 
 bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& currentServerPackets) {

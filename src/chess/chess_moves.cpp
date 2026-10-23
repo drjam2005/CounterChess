@@ -167,8 +167,22 @@ MoveResult isValidPawnMove(const ChessBoard board, PiecePosition start, PiecePos
     }
 
     if (abs(dx) == 1 && dy == direction) {
-        if (target.type == PIECE_NONE)
-            return MOVE_INVALID_OUT_OF_PIECE_RANGE;
+        if (target.type == PIECE_NONE) {
+            // En passant: capture an adjacent enemy pawn that just advanced two squares.
+            ChessPiece adjacent = board.pieces[start.y][end.x];
+            if (adjacent.type != PIECE_PAWN || adjacent.color == pawn.color || !adjacent.pawn2Stepped)
+                return MOVE_INVALID_OUT_OF_PIECE_RANGE;
+
+            if (!fromKing) {
+                ChessBoard tempBoard = board;
+                tempBoard.pieces[start.y][start.x].type = PIECE_NONE;
+                tempBoard.pieces[start.y][end.x].type = PIECE_NONE;
+                tempBoard.pieces[end.y][end.x] = pawn;
+                if (isKingChecked(tempBoard, pawn.color))
+                    return MOVE_INVALID_CHECK;
+            }
+            return MOVE_VALID_CAPTURE;
+        }
 
         if (target.color == pawn.color)
             return MOVE_INVALID_SAME_COLOR;
@@ -402,4 +416,44 @@ MoveResult isValidQueenMove(const ChessBoard board, PiecePosition start, PiecePo
 
     return MOVE_INVALID_OUT_OF_PIECE_RANGE;
 
+}
+
+std::vector<PiecePosition> GetAvailableMoves(const ChessBoard& board, PiecePosition pos) {
+	// ideally, only call once per move, not per frame
+	ChessPiece piece = getPieceAt(board, pos);
+	std::vector<PiecePosition> positions;
+	for(int y = 0; y < 8; ++y) {
+		for(int x = 0; x < 8; ++x) {
+            switch (piece.type) {
+                case PIECE_PAWN:
+					if (isValidPawnMove(board, pos, {x, y}) >= MOVE_VALID)
+						positions.push_back({x, y});
+                    break;
+                case PIECE_KNIGHT:
+					if (isValidKnightMove(board, pos, {x, y}) >= MOVE_VALID)
+						positions.push_back({x, y});
+                    break;
+                case PIECE_BISHOP:
+					if (isValidBishopMove(board, pos, {x, y}) >= MOVE_VALID)
+						positions.push_back({x, y});
+                    break;
+                case PIECE_ROOK:
+					if (isValidRookMove(board, pos, {x, y}) >= MOVE_VALID)
+						positions.push_back({x, y});
+                    break;
+                case PIECE_QUEEN:
+					if (isValidQueenMove(board, pos, {x, y}) >= MOVE_VALID)
+						positions.push_back({x, y});
+                    break;
+                case PIECE_KING:
+					if (isValidKingMove(board, pos, {x, y}) >= MOVE_VALID)
+						positions.push_back({x, y});
+                    break;
+                default:
+                    break;
+            }
+		}
+	}
+
+	return positions;
 }

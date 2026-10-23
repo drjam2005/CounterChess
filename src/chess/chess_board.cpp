@@ -103,7 +103,23 @@ MoveResult movePiece(ChessBoard& board, PiecePosition start, PiecePosition end) 
 			board.pieces[start.y][3] = rook;
 		}
 	} else if (isValid >= MOVE_VALID) {
+		bool enPassant = piece.type == PIECE_PAWN && start.x != end.x && target.type == PIECE_NONE;
+		int pawnDirection = piece.color == COLOR_WHITE ? -1 : 1;
+		bool pawnDoubleStep = piece.type == PIECE_PAWN && end.y - start.y == 2 * pawnDirection;
+
+		// The right to capture en passant lasts for one move only.
+		for (int y = 0; y < 8; ++y) {
+			for (int x = 0; x < 8; ++x) {
+				if (board.pieces[y][x].type == PIECE_PAWN)
+					board.pieces[y][x].pawn2Stepped = false;
+			}
+		}
+
+		if (enPassant)
+			board.pieces[start.y][end.x].type = PIECE_NONE;
+
 		piece.hasMoved = true;
+		piece.pawn2Stepped = pawnDoubleStep;
 		board.pieces[start.y][start.x].type = PIECE_NONE;
 		board.pieces[end.y][end.x] = piece;
 	}
@@ -111,4 +127,3 @@ MoveResult movePiece(ChessBoard& board, PiecePosition start, PiecePosition end) 
 
 	return isValid;
 }
-
