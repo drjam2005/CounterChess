@@ -21,8 +21,6 @@
 #include "../vendor/raylib/include/raygui.h"
 
 #define FONT_SIZE 25
-#define PLAYER_WHITE (1)
-#define PLAYER_BLACK (2)
 
 #define return_error(...) \
 	do {\
@@ -173,7 +171,7 @@ int main(int argc, char** argv) {
 		ClearBackground(WHITE);
 		DrawText(TextFormat("ID: %d", clientID), 10, 20, FONT_SIZE, BLACK);
 
-		if (gameState.currentPlayerIDTurn == clientID) {
+		if (gameState.currentColorTurn == myColor) {
 			DrawText("YOUR TURN", 80, 20, FONT_SIZE, GREEN);
 		} else {
 			DrawText("NOT YOUR TURN", 80, 20, FONT_SIZE, RED);
@@ -253,20 +251,29 @@ void updateBoard(const GameState& gameState) {
     if (x < 0 || x >= 8 || y < 0 || y >= 8)
         return;
 
-    if (clientID == 2) {
+    if (myColor == COLOR_BLACK) {
         x = 7 - x; y = 7 - y;
-    } else if (clientID != 1) {
+    } else if (myColor != COLOR_WHITE) {
         return;
     }
 
     if (chosenStart.x == -1 && chosenStart.y == -1) {
         chosenStart = {x, y};
         chosenEnd = {-1, -1};
-        printf("start: %d %d\n", x, y);
+        // printf("start: %d %d\n", x, y);
     } else {
         chosenEnd = {x, y};
+
+		// queue sending packet
+		fromClientPacket packet;
+		packet.packetType = PACKET_SEND_MOVE;
+		packet.chosenStart = chosenStart;
+		packet.chosenEnd = chosenEnd;
+		queuePacket(packet);
+
+		// reset start
         chosenStart = {-1, -1};
-        printf("end: %d %d\n", x, y);
+        //printf("end: %d %d\n", x, y);
     }
 }
 
@@ -278,7 +285,7 @@ void renderBoard(const GameState& gameState) {
 	float xStart = squareSize, yStart = squareSize;
 
 	// render border
-	if(clientID == 1) {
+	if(myColor == COLOR_WHITE) {
 		DrawRectangleLinesEx({(float)xStart-5.0f, (float)yStart-5.0f, squareSize * 8 + 10.0f, squareSize * 8 + 10.0f}, 10.0f, BLACK);
 		for(int y = 0; y < 8; ++y) {
 			for(int x = 0; x < 8; ++x) {
@@ -293,6 +300,9 @@ void renderBoard(const GameState& gameState) {
 
 				// draw the piece
 				ChessPiece piece = getPieceAt(gameState.currentChessBoard, {x, y});
+				if(piece.type == PIECE_KING && gameState.checkedColor == piece.color) {
+					DrawRectangle(xStart, yStart, squareSize, squareSize, RED);
+				}
 				if(piece.type != PIECE_NONE) {
 					DrawRectangle(xStart + (squareSize/5.0f), yStart + (squareSize/5.0f), squareSize - (2.0f*squareSize/5.0f), squareSize - (2.0f*squareSize/5.0f), (piece.color == COLOR_WHITE ? LIGHTGRAY : DARKGRAY));
 					DrawText(PieceToString(piece.type).c_str(), xStart + (2*squareSize/5.0f), yStart + (2*squareSize/5.0f), 17.0f, BLACK);
@@ -303,7 +313,7 @@ void renderBoard(const GameState& gameState) {
 			xStart = squareSize;
 			yStart += squareSize;
 		}
-	} else if (clientID == 2) {
+	} else if (myColor == COLOR_BLACK) {
 		DrawRectangleLinesEx({(float)xStart-5.0f, (float)yStart-5.0f, squareSize * 8 + 10.0f, squareSize * 8 + 10.0f}, 10.0f, BLACK);
 		for(int y = 7; y >= 0; --y) {
 			for(int x = 7; x >= 0; --x) {
@@ -318,6 +328,9 @@ void renderBoard(const GameState& gameState) {
 
 				// draw the piece
 				ChessPiece piece = getPieceAt(gameState.currentChessBoard, {x, y});
+				if(piece.type == PIECE_KING && gameState.checkedColor == piece.color) {
+					DrawRectangle(xStart, yStart, squareSize, squareSize, RED);
+				}
 				if(piece.type != PIECE_NONE) {
 					DrawRectangle(xStart + (squareSize/5.0f), yStart + (squareSize/5.0f), squareSize - (2.0f*squareSize/5.0f), squareSize - (2.0f*squareSize/5.0f), (piece.color == COLOR_WHITE ? LIGHTGRAY : DARKGRAY));
 					DrawText(PieceToString(piece.type).c_str(), xStart + (2*squareSize/5.0f), yStart + (2*squareSize/5.0f), 17.0f, BLACK);
@@ -341,6 +354,7 @@ bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& current
 		// gameState stuff
 		if(serverPacket.packetType == PACKET_SEND_ID) {
 			clientID = serverPacket.providedPlayerID;
+			myColor = (PIECE_COLOR)serverPacket.yourColor;
 		}
 		if(serverPacket.packetType == PACKET_SEND_GAME_STATE) {
 			gameState = serverPacket.gameState;

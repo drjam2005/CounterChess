@@ -33,10 +33,10 @@
 
 #define swap_turn(state) \
 	do {\
-		if(state.currentPlayerIDTurn == 1)\
-			state.currentPlayerIDTurn = 2;\
+		if(state.currentColorTurn == COLOR_WHITE)\
+			state.currentColorTurn = COLOR_BLACK;\
 		else \
-			state.currentPlayerIDTurn = 1;\
+			state.currentColorTurn = COLOR_WHITE;\
 	} while(0)
 
 // global variables
@@ -182,6 +182,7 @@ void acceptClients(int serverSocket) {
 				// game start
 				gameState.gameStarted = true;
 				gameState.currentPlayerIDTurn = 1;
+				gameState.currentColorTurn = (int)COLOR_WHITE;
 				gameState.currentChessBoard = standardBoard;
 				queueGameState(gameState);
 			}
@@ -193,6 +194,7 @@ void acceptClients(int serverSocket) {
 		fromServerPacket packet = {};
 		packet.packetType = PACKET_SEND_ID;
 		packet.providedPlayerID = id;
+		packet.yourColor = (int)(id == 1 ? COLOR_WHITE : COLOR_BLACK);
 		packet.receivingFD = clientFD;
 		queuePacket(packet);
 		queueGameState(stateSnapshot);
@@ -279,7 +281,7 @@ int main(int argc, char** argv) {
 		clientPacketQueueMutex.lock();
 		for(auto& packet : recievedClientPackets){
 			if(packet.packetType == PACKET_SEND_MOVE) {
-				DrawText(TextFormat("%d. packet (ClientID: %d) SEND_MOVE: %d\n", ++i, packet.clientID, packet.chosenMove),
+				DrawText(TextFormat("%d. packet (ClientID: %d) SEND_MOVE\n", ++i, packet.clientID),
 						20, 80+y,
 						FONT_SIZE, BLACK);
 			y+= FONT_SIZE + 5;
@@ -322,20 +324,37 @@ bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& current
 	for(auto& packet : currentPacketQueue) {
 		// handle each queued client packet
 		if(packet.packetType == PACKET_SEND_MOVE) {
-			if (gameState.currentPlayerIDTurn != packet.clientID) {
+			if (gameState.currentColorTurn != (packet.clientID == 1 ? COLOR_WHITE : COLOR_BLACK)) {
 				fromServerPacket serverPacket = {};
 				serverPacket.packetType = PACKET_INFORM_PLAYER_NOT_TURN;
 				serverPacket.receivingFD = packet.clientFD;
 				queuePacket(serverPacket);
 
-				printf("Client (%d): SEND_MOVE %d (NOT THEIR TURN)\n", packet.clientID, packet.chosenMove);
+				printf("Client (%d): SEND_MOVE (%d %d) -> (%d %d) (NOT THEIR TURN)\n", packet.clientID, packet.chosenStart.x, packet.chosenStart.y, packet.chosenEnd.x, packet.chosenEnd.y);
 			} else {
-				printf("Client (%d): SEND_MOVE %d (THEIR TURN)\n", packet.clientID, packet.chosenMove);
+				printf("Client (%d): SEND_MOVE (%d %d) -> (%d %d) (THEIR TURN)\n", packet.clientID, packet.chosenStart.x, packet.chosenStart.y, packet.chosenEnd.x, packet.chosenEnd.y);
 
-				// swap turn
-				swap_turn(gameState);
+				// update game state
+				printf("test\n");
+				MoveResult res = movePiece(gameState.currentChessBoard, packet.chosenStart, packet.chosenEnd);
+				if ( res < MOVE_VALID ) {
+					printf("MOVE INVALID!!!\n");
+				} else {
+					printf("MOVE VALID!!!\n");
+					bool isWhiteChecked = isKingChecked(gameState.currentChessBoard, COLOR_WHITE);
+					bool isBlackChecked = isKingChecked(gameState.currentChessBoard, COLOR_BLACK);
+
+					if(isWhiteChecked)
+						gameState.checkedColor = COLOR_WHITE;
+					else if(isBlackChecked)
+						gameState.checkedColor = COLOR_BLACK;
+					else
+						gameState.checkedColor = COLOR_NONE;
+
+					swap_turn(gameState);
+					queueGameState(gameState);
+				}
 				// send all players the current game state
-				broadcastGameState = true;
 			}
 		}
 		if(packet.packetType == PACKET_SEND_MESSAGE) {

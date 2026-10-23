@@ -88,10 +88,25 @@ MoveResult movePiece(ChessBoard& board, PiecePosition start, PiecePosition end) 
 	}
 
 	// (FOR TESTING)
-		if(isValid >= MOVE_VALID) {
-			board.pieces[start.y][start.x].type = PIECE_NONE;
-			board.pieces[end.y][end.x] = piece;
+	if (isValid == MOVE_VALID_CASTLE) {
+		int diff = end.x - start.x;
+		ChessPiece king = board.pieces[start.y][start.x];
+		ChessPiece rook = board.pieces[end.y][end.x];
+		board.pieces[start.y][start.x].type = PIECE_NONE;
+		board.pieces[end.y][end.x].type = PIECE_NONE;
+
+		if (diff == 3) {
+			board.pieces[start.y][6] = king;
+			board.pieces[start.y][5] = rook;
+		} else if (diff == -4) {
+			board.pieces[start.y][2] = king;
+			board.pieces[start.y][3] = rook;
 		}
+	} else if (isValid >= MOVE_VALID) {
+		piece.hasMoved = true;
+		board.pieces[start.y][start.x].type = PIECE_NONE;
+		board.pieces[end.y][end.x] = piece;
+	}
 	//
 
 	return isValid;

@@ -1,4 +1,5 @@
 #include "../../include/chess/chess_board.h"
+#include <cmath>
 #include <stdlib.h>
 #include <math.h>
 
@@ -25,6 +26,10 @@ ChessPiece getPieceAt(const ChessBoard& board, PiecePosition pos) {
 		return { .type = PIECE_INVALID };
 
 	return board.pieces[pos.y][pos.x];
+}
+
+bool isPiecePresent(const ChessBoard& board, PiecePosition position) {
+	return getPieceAt(board, position).type != PIECE_NONE;
 }
 
 
@@ -308,9 +313,59 @@ MoveResult isValidKingMove(const ChessBoard board, PiecePosition start, PiecePos
     int dy = fabs(end.y - start.y);
 
     // Must move exactly one square in any direction
-    if (dx > 1 || dy > 1 || (dx == 0 && dy == 0))
-        return MOVE_INVALID_OUT_OF_PIECE_RANGE;
+	if (!(target.type == PIECE_ROOK && target.color == king.color)) {
+		if (dx > 1 || dy > 1 || (dx == 0 && dy == 0))
+			return MOVE_INVALID_OUT_OF_PIECE_RANGE;
+	} else {
+		// Castle
+		printf("user tried to castle!\n");
+		
+		if (isKingChecked(board, king.color))
+			return MOVE_INVALID_CANNOT_CASTLE;
 
+		if (king.hasMoved || target.hasMoved)
+			return MOVE_INVALID_CANNOT_CASTLE;
+
+		// check direction
+		int diff = end.x - start.x;
+		if (diff == 3) {
+			// on the right
+			bool present = isPiecePresent(board, {start.x + 1, start.y}) ||
+						   isPiecePresent(board, {start.x + 2, start.y});
+
+			if (present)
+				return MOVE_INVALID_HAS_OBSTACLE;
+			
+			// check if obstacle
+			bool safe = isMoveSafe(board, start, {start.x + 1, start.y}) &&
+					    isMoveSafe(board, start, {start.x + 2, start.y});
+
+			if (!safe)
+				return MOVE_INVALID_CANNOT_CASTLE;
+
+			return MOVE_VALID_CASTLE;
+		} else if (diff == -4) {
+			// on the left, queen side
+			bool present = isPiecePresent(board, {start.x - 1, start.y}) ||
+						   isPiecePresent(board, {start.x - 2, start.y}) || 
+						   isPiecePresent(board, {start.x - 3, start.y});
+
+			if (present)
+				return MOVE_INVALID_HAS_OBSTACLE;
+			
+			// check if obstacle
+			bool safe = isMoveSafe(board, start, {start.x - 1, start.y}) &&
+					    isMoveSafe(board, start, {start.x - 2, start.y});
+
+			if (!safe)
+				return MOVE_INVALID_CANNOT_CASTLE;
+
+			return MOVE_VALID_CASTLE;
+		} else {
+			return MOVE_INVALID_CANNOT_CASTLE;
+		}
+		return MOVE_INVALID_OUT_OF_PIECE_RANGE;
+	}
     // Cannot capture a piece of the same color
     if (target.type != PIECE_NONE && target.color == king.color)
         return MOVE_INVALID_SAME_COLOR;

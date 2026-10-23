@@ -28,6 +28,8 @@ struct fromServerPacket {
 	PACKET_TYPE packetType;
 	int receivingFD;
 	int providedPlayerID;
+	int yourColor;
+
 	GameState gameState;
 
 	// for messages
@@ -42,7 +44,8 @@ struct fromClientPacket {
 	int clientID;
 	int clientFD;
 
-	int chosenMove;
+	PiecePosition chosenStart;
+	PiecePosition chosenEnd;
 
 	char message[256];
 };

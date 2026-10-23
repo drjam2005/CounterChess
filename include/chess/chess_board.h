@@ -36,6 +36,7 @@ enum MoveResult {
 	MOVE_INVALID_OUT_OF_RANGE,
 	MOVE_INVALID_OUT_OF_PIECE_RANGE,
 	MOVE_INVALID_SAME_COLOR,
+	MOVE_INVALID_CANNOT_CASTLE,
 	MOVE_INVALID_CHECK,
 	MOVE_INVALID_HAS_MOVED,
 	MOVE_INVALID_HAS_OBSTACLE,
@@ -44,6 +45,7 @@ enum MoveResult {
 	MOVE_VALID,
 	MOVE_VALID_MOVE,
 	MOVE_VALID_CAPTURE,
+	MOVE_VALID_CASTLE,
 	MOVE_VALID_CHECK,
 
 	MOVE_COUNT
@@ -56,6 +58,7 @@ bool checkMoveRange(const ChessBoard board, PiecePosition start, PiecePosition e
 bool isKingChecked(const ChessBoard board, PIECE_COLOR color);
 bool isMoveSafe(const ChessBoard& board, PiecePosition start, PiecePosition end);
 bool isCaptureSafe(const ChessBoard& board, PiecePosition start, PiecePosition end);
+bool isPiecePresent(const ChessBoard& board, PiecePosition position);
 MoveResult movePiece(ChessBoard& board, PiecePosition start, PiecePosition end);
 ChessPiece getPieceAt(const ChessBoard& board, PiecePosition position);
 #include <string>

@@ -1,4 +1,5 @@
 #pragma once
+#include "chess/chess_piece.h"
 #ifndef _GAME_STATE_H
 #define _GAME_STATE_H
 
@@ -16,12 +17,14 @@ struct GameState {
 	size_t currentPlayerCount = 0;
 
 	int currentPlayerIDTurn = -1;
+	int currentColorTurn = COLOR_NONE;
 
 	bool gameStarted = false;
 
 	// chessBoard
 	ChessBoard currentChessBoard;
 	bool isRotated = false;
+	PIECE_COLOR checkedColor = COLOR_NONE;
 
 };
 
