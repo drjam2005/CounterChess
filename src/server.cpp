@@ -195,6 +195,10 @@ void acceptClients(int serverSocket) {
 		packet.packetType = PACKET_SEND_ID;
 		packet.providedPlayerID = id;
 		packet.yourColor = (int)(id == 1 ? COLOR_WHITE : COLOR_BLACK);
+		// save color to state
+
+		gameState.playerIDtoColor[id] = (PIECE_COLOR)packet.yourColor;
+
 		packet.receivingFD = clientFD;
 		queuePacket(packet);
 		queueGameState(stateSnapshot);
@@ -324,7 +328,7 @@ bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& current
 	for(auto& packet : currentPacketQueue) {
 		// handle each queued client packet
 		if(packet.packetType == PACKET_SEND_MOVE) {
-			if (gameState.currentColorTurn != (packet.clientID == 1 ? COLOR_WHITE : COLOR_BLACK)) {
+			if (gameState.currentColorTurn != gameState.playerIDtoColor[packet.clientID]) {
 				fromServerPacket serverPacket = {};
 				serverPacket.packetType = PACKET_INFORM_PLAYER_NOT_TURN;
 				serverPacket.receivingFD = packet.clientFD;
