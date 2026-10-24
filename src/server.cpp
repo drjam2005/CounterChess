@@ -20,7 +20,7 @@
 #define RAYGUI_IMPLEMENTATION
 #include "../vendor/raylib/include/raygui.h"
 
-#define FONT_SIZE 25
+#define FONT_SIZE 20
 
 #define return_error(...) \
 	do {\
@@ -98,14 +98,10 @@ void sendQueuedPackets() {
 }
 
 void queueGameState(const GameState& state) {
-	for (int i = 1; i <= MAX_PLAYERS; ++i) {
-		if (state.playerIDtoFD[i] == 0) continue;
-		fromServerPacket packet = {};
-		packet.packetType = PACKET_SEND_GAME_STATE;
-		packet.gameState = state;
-		packet.receivingFD = state.playerIDtoFD[i];
-		queuePacket(packet);
-	}
+	fromServerPacket packet;
+	packet.packetType = PACKET_SEND_GAME_STATE;
+	packet.gameState = state;
+	queuePacketAll(packet, state);
 
 	broadcastGameState = false;
 }
@@ -118,7 +114,6 @@ void handleClientPackets(int clientFD, int clientID) {
 		if(queueExit)
 			break;
 
-        char buffer[256] = {};
 		fromClientPacket packet;
         ssize_t res = recvAll(clientFD, &packet, sizeof(packet), 0);
 
@@ -147,7 +142,9 @@ void acceptClients(int serverSocket) {
 			break;
 		int clientFD = accept(serverSocket, 0, 0);
 		if(clientFD == -1) {
-			if (queueExit) return;
+			// Closing the listening socket is how main wakes accept during shutdown.
+			if (queueExit)
+				return;
 			return_error("accept error");
 		}
 		
@@ -241,9 +238,8 @@ int main(int argc, char** argv) {
 	std::thread outboundSender(sendQueuedPackets);
 
 	// listen on port
-	listen(serverSocket, 5);
+	if (listen(serverSocket, 5) == -1) return_error("listen error");
 	std::thread clientAcceptor(acceptClients, serverSocket);
-	clientAcceptor.detach();
 
 	// start rendering
 	while(!queueExit) {
@@ -254,22 +250,20 @@ int main(int argc, char** argv) {
 				stateSnapshot = gameState;
 			gameStateMutex.unlock();
 
-			for (int i = 1; i <= MAX_PLAYERS; ++i) {
-				if (stateSnapshot.playerIDtoFD[i] == 0) continue;
-				fromServerPacket packet = {};
-				packet.packetType = PACKET_SERVER_SHUTDOWN;
-				packet.receivingFD = stateSnapshot.playerIDtoFD[i];
-				queuePacket(packet);
-			}
+			fromServerPacket packet = {};
+			packet.packetType = PACKET_SERVER_SHUTDOWN;
+			queuePacketAll(packet, stateSnapshot);
+
 			queueExit = true;
 			toClientPacketQueueReady.notify_all();
 			break;
 		}
 
+		// packet handling
 		clientPacketQueueMutex.lock();
 			gameStateMutex.lock();
-			handleGameState(gameState, currentPacketQueue);
-			GameState stateSnapshot = gameState;
+				handleGameState(gameState, currentPacketQueue);
+				GameState stateSnapshot = gameState;
 			gameStateMutex.unlock();
 		clientPacketQueueMutex.unlock();
 
@@ -288,17 +282,35 @@ int main(int argc, char** argv) {
 				DrawText(TextFormat("%d. packet (ClientID: %d) SEND_MOVE\n", ++i, packet.clientID),
 						20, 80+y,
 						FONT_SIZE, BLACK);
-			y+= FONT_SIZE + 5;
 			}
+			if(packet.packetType == PACKET_SEND_MESSAGE) {
+				DrawText(TextFormat("%d. packet (ClientID: %d) MESSAGE: %s\n", ++i, packet.clientID, packet.message),
+						20, 80+y,
+						FONT_SIZE, BLACK);
+			}
+			y+= FONT_SIZE + 5;
 		}
 		clientPacketQueueMutex.unlock();
 
 		EndDrawing();
 	}
+
 	toClientPacketQueueReady.notify_all();
 	shutdown(serverSocket, SHUT_RDWR);
 	close(serverSocket);
+	clientAcceptor.join();
+	// Drain the shutdown packets before closing client connections.
+	toClientPacketQueueReady.notify_all();
 	outboundSender.join();
+
+	// Wake any client reader threads blocked in recv(). They own closing the
+	// client sockets, so only issue shutdown here.
+	gameStateMutex.lock();
+	for (int i = 1; i <= MAX_PLAYERS; ++i) {
+		if (gameState.playerIDtoFD[i] != 0)
+			shutdown(gameState.playerIDtoFD[i], SHUT_RDWR);
+	}
+	gameStateMutex.unlock();
 	CloseWindow();
 
 	return 0;
@@ -359,9 +371,6 @@ bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& current
 						queueGameState(gameState);
 					}
 				}
-
-				// update game state
-				// send all players the current game state
 			}
 		}
 		if(packet.packetType == PACKET_SEND_MESSAGE) {
@@ -373,6 +382,8 @@ bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& current
 		}
 	}
 
+	// update game state
+	// send all players the current game state
 	if (broadcastGameState) {
 		printf("gameState has been updated, broadcasting...\n");
 		queueGameState(gameState);

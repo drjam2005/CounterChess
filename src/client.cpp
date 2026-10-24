@@ -44,9 +44,15 @@ PiecePosition chosenEnd = {-1, -1};
 std::mutex gameStateMutex;
 int clientID;
 PIECE_COLOR myColor;
-char messageBox[256] = "Message...";
+char messageBox[256];
 bool messageEditMode = true;
 std::atomic<bool> queueExit{false};
+
+// for inputting
+char ipBox[256] = "0.0.0.0";
+bool ipEditMode = true;
+char portBox[256] = "5050";
+bool portEditMode = true;
 
 struct RenderMessage {
 	int id;
@@ -122,43 +128,73 @@ void handleServerPackets(int serverFD) {
 bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& currentServerPackets);
 void updateBoard(const GameState& gameState);
 
+int handleConnection(const char* port, const char* addr);
+
 int main(int argc, char** argv) {
-	if(argc != 3) return_error("Usage: ./client <ip_address> <port_number>");
-	int serverSocket, port_no;
-	struct sockaddr_in server_addr;
-	struct hostent *server;
+	int serverSocket;
+	bool argumentsProvided = false;
+	if(argc == 3)  {
+		serverSocket = handleConnection(argv[2], argv[1]);
+		argumentsProvided = true;
+	}
 
-	serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-	if(serverSocket < 0) return_error("socket error");
-
-	server = gethostbyname(argv[1]);
-	if(server == nullptr) return_error("gethostbyname error");
-
-	port_no = atoi(argv[2]);
-	bzero((char*)&server_addr, sizeof server_addr);
-	server_addr.sin_family = AF_INET;
-	bcopy((char*)server->h_addr, (char*)&server_addr.sin_addr.s_addr, server->h_length);
-
-	server_addr.sin_port = htons(port_no);
-
-	int res = connect(serverSocket, (struct sockaddr*)&server_addr, sizeof(server_addr));
-	if(res == -1) return_error("bind error");
-
-	std::thread packetHandler(handleServerPackets, serverSocket);
-	std::thread packetSender(sendQueuedPackets, serverSocket);
 
 	memset(&gameState, 0, sizeof gameState);
 	memset(messageBox, 0, sizeof messageBox);
 	strcpy(messageBox, "Message...");
 
-
 	// initialize rendering
 	SetTraceLogLevel(LOG_NONE);
 	InitWindow(800, 600, "Client Window");
-	//SetTargetFPS(60);
+	SetTargetFPS(60);
 
 	// start rendering
 	while(!queueExit) {
+		if(IsKeyPressed(KEY_ESCAPE) || WindowShouldClose()) {
+			queueExit = true;
+			toServerPacketsQueueReady.notify_all();
+		}
+		if(!argumentsProvided) {
+			BeginDrawing();
+			ClearBackground(RAYWHITE);
+				DrawText("Connect To Server", 100, 100, 30, BLACK);
+
+				if (GuiTextBox(
+					(Rectangle){ 100, 140, 400, 50 },
+					ipBox,
+					sizeof(ipBox),
+					ipEditMode
+				)) {
+					ipEditMode = !ipEditMode;
+				};
+
+				if (GuiTextBox(
+					(Rectangle){ 100, 200, 400, 50 },
+					portBox,
+					sizeof(portBox),
+					portEditMode
+				)) {
+					portEditMode = !portEditMode;
+				};
+
+				if (GuiButton((Rectangle){ 100, 260, 70, 40 }, "connect")) {
+					// queue message
+					if(strlen(portBox) && strlen(ipBox)) {
+						serverSocket = handleConnection(portBox, ipBox);
+						if (serverSocket == -1) {
+							portBox[0] = '\0';
+							ipBox[0] = '\0';
+							continue;
+						} else
+							argumentsProvided = true;
+					}
+
+				}
+
+			EndDrawing();
+			continue;
+		}
+
 		// game loop
 		if(IsKeyPressed(KEY_ESCAPE) || WindowShouldClose()) {
 			queueExit = true;
@@ -166,7 +202,9 @@ int main(int argc, char** argv) {
 		}
 
 		currentServerPacketQueue.lock();
+			gameStateMutex.lock();
 			handleGameState(gameState, currentServerPackets);
+			gameStateMutex.unlock();
 		currentServerPacketQueue.unlock();
 
 		updateBoard(gameState);
@@ -187,7 +225,10 @@ int main(int argc, char** argv) {
 			.playerColor = myColor
 		};
 
-		renderBoard(gameState, info);
+		if (gameState.gameStarted) 
+			renderBoard(gameState, info);
+		else
+			DrawText("Waiting for Players...", 100, 100, 20, BLACK);
 
 		// Message stuff
 		if (GuiTextBox(
@@ -235,8 +276,6 @@ int main(int argc, char** argv) {
 	queueExit = true;
 	toServerPacketsQueueReady.notify_all();
 	shutdown(serverSocket, SHUT_RDWR);
-	packetSender.join();
-	packetHandler.join();
 	CloseWindow();
 	close(serverSocket);
 
@@ -244,6 +283,9 @@ int main(int argc, char** argv) {
 }
 
 void updateBoard(const GameState& gameState) {
+	if (gameState.currentColorTurn != myColor)
+		return;
+
     if (!gameState.gameStarted)
         return;
 
@@ -297,8 +339,6 @@ bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& current
 		}
 		if(serverPacket.packetType == PACKET_SEND_GAME_STATE) {
 			gameState = serverPacket.gameState;
-			if(gameState.gameStarted)
-				printf("game started!\n");
 		}
 		if(serverPacket.packetType == PACKET_SEND_MESSAGE) {
 			RenderMessage msg;
@@ -317,4 +357,33 @@ bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& current
 	// empty queue
 	currentServerPackets.clear();
 	return true;
+}
+
+int handleConnection(const char* port, const char* addr) {
+	int serverSocket, port_no;
+	struct sockaddr_in server_addr;
+	struct hostent *server;
+
+	serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+	if(serverSocket < 0) return_error("socket error");
+
+	server = gethostbyname(addr);
+	if(server == nullptr) return_error("gethostbyname error");
+
+	port_no = atoi(port);
+	bzero((char*)&server_addr, sizeof server_addr);
+	server_addr.sin_family = AF_INET;
+	bcopy((char*)server->h_addr, (char*)&server_addr.sin_addr.s_addr, server->h_length);
+
+	server_addr.sin_port = htons(port_no);
+
+	int res = connect(serverSocket, (struct sockaddr*)&server_addr, sizeof(server_addr));
+	if(res == -1) return_error("bind error");
+
+	std::thread packetHandler(handleServerPackets, serverSocket);
+	packetHandler.detach();
+	std::thread packetSender(sendQueuedPackets, serverSocket);
+	packetSender.detach();
+
+	return serverSocket;
 }

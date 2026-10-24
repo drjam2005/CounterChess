@@ -333,6 +333,9 @@ MoveResult isValidKingMove(const ChessBoard board, PiecePosition start, PiecePos
 	} else {
 		// Castle
 		printf("user tried to castle!\n");
+
+		if (target.type != PIECE_ROOK || target.color != king.color)
+			return MOVE_INVALID_CANNOT_CASTLE;
 		
 		if (isKingChecked(board, king.color))
 			return MOVE_INVALID_CANNOT_CASTLE;
@@ -422,6 +425,10 @@ std::vector<PiecePosition> GetAvailableMoves(const ChessBoard& board, PiecePosit
 	// ideally, only call once per move, not per frame
 	ChessPiece piece = getPieceAt(board, pos);
 	std::vector<PiecePosition> positions;
+
+	if(piece.type == PIECE_NONE)
+		return positions;
+
 	for(int y = 0; y < 8; ++y) {
 		for(int x = 0; x < 8; ++x) {
             switch (piece.type) {

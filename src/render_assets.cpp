@@ -1,5 +1,6 @@
 #include "../include/render_assets.h"
 #include <algorithm>
+#include <exception>
 #include <vector>
 #include "../vendor/raylib/include/raygui.h"
 
@@ -36,7 +37,8 @@ void renderBoard(const GameState& gameState, RenderInfo info) {
 		positions.clear();
 		cachedStart = hasSelection ? info.chosenStart : PiecePosition{-1, -1};
 		cachedTurn = gameState.currentColorTurn;
-		if(hasSelection && getPieceAt(gameState.currentChessBoard, info.chosenStart).color == info.playerColor
+		if(hasSelection && getPieceAt(gameState.currentChessBoard, info.chosenStart).color == info.playerColor 
+				&& getPieceAt(gameState.currentChessBoard, info.chosenStart).type != PIECE_NONE
 				&& gameState.currentColorTurn == info.playerColor) {
 			positions = GetAvailableMoves(gameState.currentChessBoard, info.chosenStart);
 		}
@@ -72,6 +74,7 @@ void renderBoard(const GameState& gameState, RenderInfo info) {
 			ChessPiece piece = getPieceAt(gameState.currentChessBoard, boardPosition);
 			if(piece.type == PIECE_KING && gameState.checkedColor == piece.color)
 				DrawRectangle(xStart, yStart, squareSize, squareSize, RED);
+
 			if(piece.type != PIECE_NONE)
 				GuiDrawIcon(piece.type + 256, (int)xStart, (int)yStart, pixelSize, piece.color == COLOR_WHITE ? WHITE : BLACK);
 
