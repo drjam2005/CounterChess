@@ -27,3 +27,9 @@ helpers `sendAll(...)` and `recvAll(...)` are present in
 for now, some implementation may not be the best choices due to it's
 brute-force creation :sob:, current version is not final and is still subject
 to change and optimization and correctness
+
+## TODO
+- [ ] Have handling of actual board state be outside of the actual chess move checker
+    - [ ] create another `movePiece...` function that handles the moving of pieces
+- [ ] Have rendering of chess pieces/board be independent of hardcoded values and such
+    - [ ] have a more sophisticated system of rendering, use dedicated coordinates for the board and pieces to allow for animations

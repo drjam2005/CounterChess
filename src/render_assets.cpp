@@ -74,9 +74,26 @@ void renderBoard(const GameState& gameState, RenderInfo info) {
 			ChessPiece piece = getPieceAt(gameState.currentChessBoard, boardPosition);
 			if(piece.type == PIECE_KING && gameState.checkedColor == piece.color)
 				DrawRectangle(xStart, yStart, squareSize, squareSize, RED);
+			xStart += squareSize;
+		}
+		xStart = squareSize;
+		yStart += squareSize;
+	}
 
-			if(piece.type != PIECE_NONE)
-				GuiDrawIcon(piece.type + 256, (int)xStart, (int)yStart, pixelSize, piece.color == COLOR_WHITE ? WHITE : BLACK);
+	xStart = squareSize, yStart = squareSize;
+	for(int y = 0; y < 8; ++y) {
+		for(int x = 0; x < 8; ++x) {
+			PiecePosition boardPosition = toBoardPosition(x, y, info.playerColor);
+			Color cellColor = (x + y) % 2 ? BLACK_SQUARE_COLOR : WHITE_SQUARE_COLOR;
+			ChessPiece piece = getPieceAt(gameState.currentChessBoard, boardPosition);
+
+			if(piece.type != PIECE_NONE) {
+				if(info.chosenStart.x == boardPosition.x && info.chosenStart.y == boardPosition.y && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+					Vector2 mousePos = GetMousePosition();
+					GuiDrawIcon(piece.type + 256, mousePos.x - (8*pixelSize), mousePos.y - (8*pixelSize), pixelSize, piece.color == COLOR_WHITE ? WHITE : BLACK);
+				} else
+					GuiDrawIcon(piece.type + 256, (int)xStart, (int)yStart, pixelSize, piece.color == COLOR_WHITE ? WHITE : BLACK);
+			}
 
 			xStart += squareSize;
 		}
