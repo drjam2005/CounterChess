@@ -289,6 +289,9 @@ void updateBoard(const GameState& gameState) {
     if (!gameState.gameStarted)
         return;
 
+	if (!IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+		return;
+
     float squareSize = GetScreenHeight() / 10.0f;
     Vector2 mouse = GetMousePosition();
 
@@ -304,44 +307,28 @@ void updateBoard(const GameState& gameState) {
         return;
     }
 
-	if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-		if (chosenStart.x == -1 && chosenStart.y == -1) {
-			chosenStart = {x, y};
-			chosenEnd = {-1, -1};
-			// printf("start: %d %d\n", x, y);
-		} else {
-			if(chosenStart.x == x && chosenStart.y == y) {
-				chosenStart = {-1, -1};
-				return;
-			}
-
-			chosenEnd = {x, y};
-
-			// queue sending packet
-			fromClientPacket packet;
-			packet.packetType = PACKET_SEND_MOVE;
-			packet.chosenStart = chosenStart;
-			packet.chosenEnd = chosenEnd;
-			queuePacket(packet);
-
-			// reset start
+	if (chosenStart.x == -1 && chosenStart.y == -1) {
+		chosenStart = {x, y};
+		chosenEnd = {-1, -1};
+		// printf("start: %d %d\n", x, y);
+	} else {
+		if(chosenStart.x == x && chosenStart.y == y) {
 			chosenStart = {-1, -1};
-			//printf("end: %d %d\n", x, y);
+			return;
 		}
-	} else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
-		if (chosenStart.x != x || chosenStart.y != y) {
-			chosenEnd = {x, y};
 
-			// queue sending packet
-			fromClientPacket packet;
-			packet.packetType = PACKET_SEND_MOVE;
-			packet.chosenStart = chosenStart;
-			packet.chosenEnd = chosenEnd;
-			queuePacket(packet);
+		chosenEnd = {x, y};
 
-			// reset start
-			chosenStart = {-1, -1};
-		}
+		// queue sending packet
+		fromClientPacket packet;
+		packet.packetType = PACKET_SEND_MOVE;
+		packet.chosenStart = chosenStart;
+		packet.chosenEnd = chosenEnd;
+		queuePacket(packet);
+
+		// reset start
+		chosenStart = {-1, -1};
+		//printf("end: %d %d\n", x, y);
 	}
 
 }

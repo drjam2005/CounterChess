@@ -88,7 +88,7 @@ void renderBoard(const GameState& gameState, RenderInfo info) {
 			ChessPiece piece = getPieceAt(gameState.currentChessBoard, boardPosition);
 
 			if(piece.type != PIECE_NONE) {
-				if(info.chosenStart.x == boardPosition.x && info.chosenStart.y == boardPosition.y && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+				if(info.chosenStart.x == boardPosition.x && info.chosenStart.y == boardPosition.y) {
 					Vector2 mousePos = GetMousePosition();
 					GuiDrawIcon(piece.type + 256, mousePos.x - (8*pixelSize), mousePos.y - (8*pixelSize), pixelSize, piece.color == COLOR_WHITE ? WHITE : BLACK);
 				} else
