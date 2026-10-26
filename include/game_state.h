@@ -1,9 +1,6 @@
 #pragma once
-#include "chess/chess_piece.h"
 #ifndef _GAME_STATE_H
 #define _GAME_STATE_H
-
-#include <deque>
 
 // chess implementation
 #include "chess/chess_board.h"
@@ -29,5 +26,4 @@ struct GameState {
 
 };
 
-
-#endif
+#endif // _GAME_STATE_H
