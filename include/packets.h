@@ -2,10 +2,6 @@
 #ifndef _PACKET_H
 #define _PACKET_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "game_state.h"
 
 enum PACKET_TYPE {
@@ -55,9 +51,5 @@ typedef struct fromClientPacket {
 
 #define toClientPacket fromServerPacket
 #define toServerPacket fromClientPacket
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // _PACKET_H

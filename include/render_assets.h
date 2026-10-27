@@ -2,10 +2,6 @@
 #ifndef _RENDER_ASSETS_H
 #define _RENDER_ASSETS_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "../vendor/raylib/include/raylib.h"
 #include "chess/chess_piece.h"
 #include "chess/chess_board.h"
@@ -17,9 +13,5 @@ typedef struct RenderInfo {
 } RenderInfo;
 
 void renderBoard(const struct GameState gameState, struct RenderInfo info);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // _RENDER_ASSETS_H

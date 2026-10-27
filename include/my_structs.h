@@ -18,10 +18,6 @@ typedef struct fromServerPacketQueue {
 	size_t front;
 } fromServerPacketQueue;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct fromClientPacketQueue createClientPacketQueue(void);
 struct fromServerPacketQueue createServerPacketQueue(void);
 
@@ -35,9 +31,5 @@ int popServerPacketQueue(struct fromServerPacketQueue* queue);
 
 void clearClientPacketQueue(struct fromClientPacketQueue* queue);
 void clearServerPacketQueue(struct fromServerPacketQueue* queue);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // MY_STRUCTS_H
