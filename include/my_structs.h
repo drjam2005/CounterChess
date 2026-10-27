@@ -6,17 +6,17 @@
 
 #define MAX_QUEUE_SIZE 256
 
-struct fromClientPacketQueue {
+typedef struct fromClientPacketQueue {
 	struct fromClientPacket data[MAX_QUEUE_SIZE];
 	size_t size;
 	size_t front;
-};
+} fromClientPacketQueue;
 
-struct fromServerPacketQueue {
+typedef struct fromServerPacketQueue {
 	struct fromServerPacket data[MAX_QUEUE_SIZE];
 	size_t size;
 	size_t front;
-};
+} fromServerPacketQueue;
 
 #ifdef __cplusplus
 extern "C" {

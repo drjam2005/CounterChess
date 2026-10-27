@@ -5,13 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <thread>
-#include <string>
-#include <vector>
-#include <mutex>
-#include <condition_variable>
-#include <atomic>
+#include <pthread.h>
+#include <stdatomic.h>
 
 #include "../include/game_state.h"
 #include "../include/packets.h"
@@ -42,12 +37,13 @@
 GameState gameState;
 PiecePosition chosenStart = {-1, -1};
 PiecePosition chosenEnd = {-1, -1};
-std::mutex gameStateMutex;
+pthread_mutex_t gameStateMutex = PTHREAD_MUTEX_INITIALIZER;
 int clientID;
-PIECE_COLOR myColor;
+enum PIECE_COLOR myColor;
 char messageBox[256];
 bool messageEditMode = true;
-std::atomic<bool> queueExit{false};
+atomic_bool queueExit = false;
+int errno = 0;
 
 // for inputting
 char ipBox[256] = "0.0.0.0";
@@ -55,42 +51,56 @@ bool ipEditMode = true;
 char portBox[256] = "5050";
 bool portEditMode = true;
 
-struct RenderMessage {
+typedef struct RenderMessage {
 	int id;
-	std::string message;
-};
+	char message[256];
+} RenderMessage;
 
-std::vector<RenderMessage> gameMessages;
+// std::vector<RenderMessage> gameMessages;
+RenderMessage gameMessages[256];
+int currentIndex = 0;
 
+pthread_t packetHandler;
+pthread_t packetSender;
 // queued packets
 fromServerPacketQueue currentServerPackets = {};
-std::mutex currentServerPacketQueue;
+pthread_mutex_t currentServerPacketQueue = PTHREAD_MUTEX_INITIALIZER;
 
 fromClientPacketQueue toServerPacketsQueue = {};
-std::mutex toServerPacketsQueueMutex;
-std::condition_variable toServerPacketsQueueReady;
+pthread_mutex_t toServerPacketsQueueMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t toServerPacketsQueueReady = PTHREAD_COND_INITIALIZER;
 
-void queuePacket(const fromClientPacket& packet) {
-	{
-		std::lock_guard<std::mutex> lock(toServerPacketsQueueMutex);
-		if (enqueueClientPacketQueue(&toServerPacketsQueue, packet) != 0)
-			return_error("outgoing packet queue is full");
-	}
-	toServerPacketsQueueReady.notify_one();
+void stopPacketSender(void) {
+	pthread_mutex_lock(&toServerPacketsQueueMutex);
+	queueExit = true;
+	pthread_cond_broadcast(&toServerPacketsQueueReady);
+	pthread_mutex_unlock(&toServerPacketsQueueMutex);
 }
 
-void sendQueuedPackets(int serverFD) {
+void queuePacket(const fromClientPacket packet) {
+	pthread_mutex_lock(&toServerPacketsQueueMutex);
+	if (enqueueClientPacketQueue(&toServerPacketsQueue, packet) != 0)
+		return_error("outgoing packet queue is full");
+	pthread_mutex_unlock(&toServerPacketsQueueMutex);
+	pthread_cond_signal(&toServerPacketsQueueReady);
+}
+
+void* sendQueuedPackets(void* sFD) {
+	int serverFD = *(int*)sFD;
 	while(true) {
 		fromClientPacket packet;
 		{
-			std::unique_lock<std::mutex> lock(toServerPacketsQueueMutex);
-			toServerPacketsQueueReady.wait(lock, [] {
-				return queueExit || toServerPacketsQueue.size > 0;
-			});
-			if (queueExit) return;
+			pthread_mutex_lock(&toServerPacketsQueueMutex);
+			while (toServerPacketsQueue.size == 0 && !queueExit)
+				pthread_cond_wait(&toServerPacketsQueueReady, &toServerPacketsQueueMutex);
+			if (queueExit) {
+				pthread_mutex_unlock(&toServerPacketsQueueMutex);
+				return NULL;
+			}
 			if (frontClientPacketQueue(&toServerPacketsQueue, &packet) != 0 ||
 				popClientPacketQueue(&toServerPacketsQueue) != 0)
 				return_error("failed to read outgoing packet queue");
+			pthread_mutex_unlock(&toServerPacketsQueueMutex);
 		}
 
 		if(sendAll(serverFD, &packet, sizeof packet, 0) <= 0)
@@ -98,39 +108,40 @@ void sendQueuedPackets(int serverFD) {
 	}
 }
 
-void handleServerPackets(int serverFD) {
+void* handleServerPackets(void* sFD) {
+	int serverFD = *(int*)sFD;
 	while(true) {
 		fromServerPacket serverPacket;
 		ssize_t res = recvAll(serverFD, &serverPacket, sizeof serverPacket, 0);
 
 		// error handling
-		if(res <= 0) return;
+		if(res <= 0) return NULL;
 		if(serverPacket.packetType == PACKET_SERVER_FULL) {
-			queueExit = true;
-			toServerPacketsQueueReady.notify_all();
+			stopPacketSender();
 			return_error("ERROR: %s", serverPacket.message);
-			return;
+			return NULL;
 		}
 		if(serverPacket.packetType == PACKET_SERVER_SHUTDOWN) {
-			queueExit = true;
-			toServerPacketsQueueReady.notify_all();
-			return;
+			stopPacketSender();
+			return NULL;
 		}
 
 		{ // misc handling
 		}
 
 		{
-			std::lock_guard<std::mutex> lock(currentServerPacketQueue);
-			if (enqueueServerPacketQueue(&currentServerPackets, serverPacket) != 0)
+			//std::lock_guard<std::mutex> lock(currentServerPacketQueue);
+			pthread_mutex_lock(&currentServerPacketQueue);
+			if (enqueueServerPacketQueue(&currentServerPackets, serverPacket) == -1)
 				return_error("incoming packet queue is full");
+			pthread_mutex_unlock(&currentServerPacketQueue);
 		}
 
 	}
 }
 
-bool handleGameState(GameState& gameState, fromServerPacketQueue& currentServerPackets);
-void updateBoard(const GameState& gameState);
+bool handleGameState(GameState* gameState, fromServerPacketQueue* currentServerPackets);
+void updateBoard(const GameState gameState);
 
 int handleConnection(const char* port, const char* addr);
 
@@ -155,8 +166,7 @@ int main(int argc, char** argv) {
 	// start rendering
 	while(!queueExit) {
 		if(IsKeyPressed(KEY_ESCAPE) || WindowShouldClose()) {
-			queueExit = true;
-			toServerPacketsQueueReady.notify_all();
+			stopPacketSender();
 		}
 		if(!argumentsProvided) {
 			BeginDrawing();
@@ -201,14 +211,15 @@ int main(int argc, char** argv) {
 
 		// game loop
 		if(IsKeyPressed(KEY_ESCAPE) || WindowShouldClose()) {
-			queueExit = true;
-			toServerPacketsQueueReady.notify_all();
+			stopPacketSender();
 		}
 
 		{
-			std::lock_guard<std::mutex> packetLock(currentServerPacketQueue);
-			std::lock_guard<std::mutex> stateLock(gameStateMutex);
-			handleGameState(gameState, currentServerPackets);
+			pthread_mutex_lock(&currentServerPacketQueue);
+			pthread_mutex_lock(&gameStateMutex);
+				handleGameState(&gameState, &currentServerPackets);
+			pthread_mutex_unlock(&currentServerPacketQueue);
+			pthread_mutex_unlock(&gameStateMutex);
 		}
 
 		updateBoard(gameState);
@@ -260,25 +271,24 @@ int main(int argc, char** argv) {
 		// render all messages
 		float yStart = 460;
 		float xStart = 550;
-		int messageCount = gameMessages.size();
+		int messageCount = currentIndex;
 
 		for (int i = 0; i < 10 && i < messageCount; ++i) {
 			int index = messageCount - 1 - i;
 
-			int messageWidth = MeasureText(gameMessages[index].message.c_str(), 20);
+			int messageWidth = MeasureText(gameMessages[index].message, 20);
 
 			if (gameMessages[index].id == clientID) {
-				DrawText(gameMessages[index].message.c_str(),
+				DrawText(gameMessages[index].message,
 						 xStart + 200 - messageWidth, yStart - (i * 25), 20, GREEN);
 			} else {
-				DrawText(gameMessages[index].message.c_str(),
+				DrawText(gameMessages[index].message,
 						 xStart, yStart - (i * 25), 20, BLACK);
 			}
 		}
 		EndDrawing();
 	}
-	queueExit = true;
-	toServerPacketsQueueReady.notify_all();
+	stopPacketSender();
 	shutdown(serverSocket, SHUT_RDWR);
 	CloseWindow();
 	close(serverSocket);
@@ -286,7 +296,7 @@ int main(int argc, char** argv) {
 	return 0;
 }
 
-void updateBoard(const GameState& gameState) {
+void updateBoard(const GameState gameState) {
 	if (gameState.currentColorTurn != myColor)
 		return;
 
@@ -312,16 +322,16 @@ void updateBoard(const GameState& gameState) {
     }
 
 	if (chosenStart.x == -1 && chosenStart.y == -1) {
-		chosenStart = {x, y};
-		chosenEnd = {-1, -1};
+		chosenStart = (PiecePosition){x, y};
+		chosenEnd = (PiecePosition){-1, -1};
 		// printf("start: %d %d\n", x, y);
 	} else {
 		if(chosenStart.x == x && chosenStart.y == y) {
-			chosenStart = {-1, -1};
+			chosenStart = (PiecePosition){-1, -1};
 			return;
 		}
 
-		chosenEnd = {x, y};
+		chosenEnd = (PiecePosition){x, y};
 
 		// queue sending packet
 		fromClientPacket packet;
@@ -331,41 +341,46 @@ void updateBoard(const GameState& gameState) {
 		queuePacket(packet);
 
 		// reset start
-		chosenStart = {-1, -1};
+		chosenStart = (PiecePosition){-1, -1};
 		//printf("end: %d %d\n", x, y);
 	}
 
 }
 
-bool handleGameState(GameState& gameState, fromServerPacketQueue& currentServerPackets) {
+bool handleGameState(GameState* gameState, fromServerPacketQueue* currentServerPackets) {
 	// handle game loop
 	// PACKET HANDLING
-	while (currentServerPackets.size > 0) {
+	while (currentServerPackets->size > 0) {
 		fromServerPacket serverPacket;
-		if (frontServerPacketQueue(&currentServerPackets, &serverPacket) != 0)
+		if (frontServerPacketQueue(currentServerPackets, &serverPacket) != 0)
 			return false;
-		if (popServerPacketQueue(&currentServerPackets) != 0)
+		if (popServerPacketQueue(currentServerPackets) != 0)
 			return false;
 
 		// handle each queued server packet
 		// gameState stuff
 		if(serverPacket.packetType == PACKET_SEND_ID) {
 			clientID = serverPacket.providedPlayerID;
-			myColor = (PIECE_COLOR)serverPacket.yourColor;
+			myColor = (enum PIECE_COLOR)serverPacket.yourColor;
 		}
 		if(serverPacket.packetType == PACKET_SEND_GAME_STATE) {
-			gameState = serverPacket.gameState;
+			*gameState = serverPacket.gameState;
 		}
 		if(serverPacket.packetType == PACKET_SEND_MESSAGE) {
 			RenderMessage msg;
-			msg.message = serverPacket.message;
+			strcpy(msg.message, serverPacket.message);
 			msg.id = serverPacket.messageFromID;
-			gameMessages.push_back(msg);
+			if (currentIndex < 256) {
+				gameMessages[currentIndex++] = msg;
+			} else {
+				memmove(gameMessages, gameMessages + 1, sizeof gameMessages[0] * 255);
+				gameMessages[255] = msg;
+			}
 		}
 
 		// handle server responses
 		if(serverPacket.packetType == PACKET_INFORM_PLAYER_TURN)
-			gameState.currentPlayerIDTurn = serverPacket.providedPlayerID;
+			gameState->currentPlayerIDTurn = serverPacket.providedPlayerID;
 		if(serverPacket.packetType == PACKET_INFORM_PLAYER_NOT_TURN)
 			printf("Not your turn... dummy...\n");
  	}
@@ -382,7 +397,7 @@ int handleConnection(const char* port, const char* addr) {
 	if(serverSocket < 0) return_error("socket error");
 
 	server = gethostbyname(addr);
-	if(server == nullptr) return_error("gethostbyname error");
+	if(server == NULL) return_error("gethostbyname error");
 
 	port_no = atoi(port);
 	bzero((char*)&server_addr, sizeof server_addr);
@@ -394,10 +409,10 @@ int handleConnection(const char* port, const char* addr) {
 	int res = connect(serverSocket, (struct sockaddr*)&server_addr, sizeof(server_addr));
 	if(res == -1) return_error("bind error");
 
-	std::thread packetHandler(handleServerPackets, serverSocket);
-	packetHandler.detach();
-	std::thread packetSender(sendQueuedPackets, serverSocket);
-	packetSender.detach();
+	pthread_create(&packetHandler, NULL, handleServerPackets, &serverSocket);
+	pthread_detach(packetHandler);
+	pthread_create(&packetSender, NULL, sendQueuedPackets, &serverSocket);
+	pthread_detach(packetSender);
 
 	return serverSocket;
 }

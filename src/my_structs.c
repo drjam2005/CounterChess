@@ -12,7 +12,7 @@ struct fromServerPacketQueue createServerPacketQueue(void) {
 }
 
 int enqueueClientPacketQueue(struct fromClientPacketQueue* queue, struct fromClientPacket packet) {
-	if (queue == NULL || queue->size >= MAX_QUEUE_SIZE)
+	if (queue == NULL || queue->front >= MAX_QUEUE_SIZE || queue->size >= MAX_QUEUE_SIZE)
 		return -1;
 
 	size_t tail = (queue->front + queue->size) % MAX_QUEUE_SIZE;
@@ -22,7 +22,7 @@ int enqueueClientPacketQueue(struct fromClientPacketQueue* queue, struct fromCli
 }
 
 int enqueueServerPacketQueue(struct fromServerPacketQueue* queue, struct fromServerPacket packet) {
-	if (queue == NULL || queue->size >= MAX_QUEUE_SIZE)
+	if (queue == NULL || queue->front >= MAX_QUEUE_SIZE || queue->size >= MAX_QUEUE_SIZE)
 		return -1;
 
 	size_t tail = (queue->front + queue->size) % MAX_QUEUE_SIZE;
@@ -32,7 +32,10 @@ int enqueueServerPacketQueue(struct fromServerPacketQueue* queue, struct fromSer
 }
 
 int frontClientPacketQueue(const struct fromClientPacketQueue* queue, struct fromClientPacket* packetOut) {
-	if (queue == NULL || packetOut == NULL || queue->size == 0)
+	if (queue->size == 0)
+		return -2;
+	if (queue == NULL || packetOut == NULL || queue->size == 0 ||
+		queue->size > MAX_QUEUE_SIZE || queue->front >= MAX_QUEUE_SIZE)
 		return -1;
 
 	*packetOut = queue->data[queue->front];
@@ -40,7 +43,9 @@ int frontClientPacketQueue(const struct fromClientPacketQueue* queue, struct fro
 }
 
 int frontServerPacketQueue(const struct fromServerPacketQueue* queue, struct fromServerPacket* packetOut) {
-	if (queue == NULL || packetOut == NULL || queue->size == 0)
+	if (queue->size == 0)
+		return -2;
+	if (queue == NULL || packetOut == NULL || queue->size > MAX_QUEUE_SIZE || queue->front >= MAX_QUEUE_SIZE)
 		return -1;
 
 	*packetOut = queue->data[queue->front];
@@ -48,7 +53,10 @@ int frontServerPacketQueue(const struct fromServerPacketQueue* queue, struct fro
 }
 
 int popClientPacketQueue(struct fromClientPacketQueue* queue) {
-	if (queue == NULL || queue->size == 0)
+	if (queue->size == 0)
+		return -2;
+	if (queue == NULL || queue->size > MAX_QUEUE_SIZE ||
+		queue->front >= MAX_QUEUE_SIZE)
 		return -1;
 
 	queue->front = (queue->front + 1) % MAX_QUEUE_SIZE;
@@ -57,7 +65,10 @@ int popClientPacketQueue(struct fromClientPacketQueue* queue) {
 }
 
 int popServerPacketQueue(struct fromServerPacketQueue* queue) {
-	if (queue == NULL || queue->size == 0)
+	if (queue->size == 0)
+		return -2;
+	if (queue == NULL || queue->size > MAX_QUEUE_SIZE ||
+		queue->front >= MAX_QUEUE_SIZE)
 		return -1;
 
 	queue->front = (queue->front + 1) % MAX_QUEUE_SIZE;
