@@ -16,11 +16,11 @@ The game is like the typical game of chess with black and white pieces that are 
 ## Programming Side
 ### Networking side
 - This project follows a client-server architecture in networking,
-`src/client.cpp` and `src/server.cpp`.  Both utilize the sending of
+`src/client.c` and `src/server.c`.  Both utilize the sending of
 **PACKETS**, present in `include/packets.h` with the necessary data.  Given
 that `send(...)` and `recv(...)` may not return the expected size of data,
 helpers `sendAll(...)` and `recvAll(...)` are present in
-`src/helpers.cpp`
+`src/helpers.c`
 
 ### Game side
 - Utilizes a chess-engine written from scratch `src/chess/chess*`. Although
