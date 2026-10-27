@@ -8,7 +8,6 @@
 
 #include <thread>
 #include <vector>
-#include <deque>
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
@@ -16,6 +15,7 @@
 #include "../include/game_state.h"
 #include "../include/packets.h"
 #include "../include/helpers.h"
+#include "../include/my_structs.h"
 #include "../vendor/raylib/include/raylib.h"
 #define RAYGUI_IMPLEMENTATION
 #include "../vendor/raylib/include/raygui.h"
@@ -48,17 +48,19 @@ bool broadcastGameState = false;
 
 // queued packets
 std::vector<fromClientPacket> recievedClientPackets;
-std::deque<fromClientPacket> currentPacketQueue;
+fromClientPacketQueue currentPacketQueue = {};
 std::mutex clientPacketQueueMutex;
 
-std::deque<fromServerPacket> toClientPacketQueue;
+fromServerPacketQueue toClientPacketQueue = {};
 std::mutex toClientPacketQueueMutex;
 std::condition_variable toClientPacketQueueReady;
 
 void queuePacket(const fromServerPacket& packet) {
-	toClientPacketQueueMutex.lock();
-	toClientPacketQueue.push_back(packet);
-	toClientPacketQueueMutex.unlock();
+	{
+		std::lock_guard<std::mutex> lock(toClientPacketQueueMutex);
+		if (enqueueServerPacketQueue(&toClientPacketQueue, packet) != 0)
+			return_error("outgoing packet queue is full");
+	}
 	toClientPacketQueueReady.notify_one();
 }
 
@@ -85,11 +87,12 @@ void sendQueuedPackets() {
 		{
 			std::unique_lock<std::mutex> lock(toClientPacketQueueMutex);
 			toClientPacketQueueReady.wait(lock, [] {
-				return queueExit || !toClientPacketQueue.empty();
+				return queueExit || toClientPacketQueue.size > 0;
 			});
-			if (toClientPacketQueue.empty() && queueExit) return;
-			packet = toClientPacketQueue.front();
-			toClientPacketQueue.pop_front();
+			if (toClientPacketQueue.size == 0 && queueExit) return;
+			if (frontServerPacketQueue(&toClientPacketQueue, &packet) != 0 ||
+				popServerPacketQueue(&toClientPacketQueue) != 0)
+				return_error("failed to read outgoing packet queue");
 		}
 
 		if(sendAll(packet.receivingFD, &packet, sizeof packet, 0) <= 0)
@@ -107,7 +110,7 @@ void queueGameState(const GameState& state) {
 }
 
 void handleClientDisconnect(int clientFD, int clientID);
-bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& currentPacketQueue);
+bool handleGameState(GameState& gameState, fromClientPacketQueue& currentPacketQueue);
 
 void handleClientPackets(int clientFD, int clientID) {
     while(true) {
@@ -125,10 +128,12 @@ void handleClientPackets(int clientFD, int clientID) {
 			packet.clientID = clientID;
 		}
 
-		clientPacketQueueMutex.lock();
-			currentPacketQueue.push_back(packet);
+		{
+			std::lock_guard<std::mutex> lock(clientPacketQueueMutex);
+			if (enqueueClientPacketQueue(&currentPacketQueue, packet) != 0)
+				return_error("incoming packet queue is full");
 			recievedClientPackets.push_back(packet);
-		clientPacketQueueMutex.unlock();
+		}
 
     }
 
@@ -260,12 +265,13 @@ int main(int argc, char** argv) {
 		}
 
 		// packet handling
-		clientPacketQueueMutex.lock();
-			gameStateMutex.lock();
-				handleGameState(gameState, currentPacketQueue);
-				GameState stateSnapshot = gameState;
-			gameStateMutex.unlock();
-		clientPacketQueueMutex.unlock();
+		GameState stateSnapshot;
+		{
+			std::lock_guard<std::mutex> packetLock(clientPacketQueueMutex);
+			std::lock_guard<std::mutex> stateLock(gameStateMutex);
+			handleGameState(gameState, currentPacketQueue);
+			stateSnapshot = gameState;
+		}
 
 		BeginDrawing();
 		ClearBackground(RAYWHITE);
@@ -276,7 +282,8 @@ int main(int argc, char** argv) {
 
 		int y = 0;
 		int i = 0;
-		clientPacketQueueMutex.lock();
+		{
+		std::lock_guard<std::mutex> lock(clientPacketQueueMutex);
 		for(auto& packet : recievedClientPackets){
 			if(packet.packetType == PACKET_SEND_MOVE) {
 				DrawText(TextFormat("%d. packet (ClientID: %d) SEND_MOVE\n", ++i, packet.clientID),
@@ -290,7 +297,7 @@ int main(int argc, char** argv) {
 			}
 			y+= FONT_SIZE + 5;
 		}
-		clientPacketQueueMutex.unlock();
+		}
 
 		EndDrawing();
 	}
@@ -333,11 +340,17 @@ void handleClientDisconnect(int clientFD, int clientID) {
 	gameStateMutex.unlock();
 } 
 
-bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& currentPacketQueue) {
+bool handleGameState(GameState& gameState, fromClientPacketQueue& currentPacketQueue) {
 	// handle game loop
 	// PACKET HANDLING
 	broadcastGameState = false;
-	for(auto& packet : currentPacketQueue) {
+	while (currentPacketQueue.size > 0) {
+		fromClientPacket packet;
+		if (frontClientPacketQueue(&currentPacketQueue, &packet) != 0)
+			return false;
+		if (popClientPacketQueue(&currentPacketQueue) != 0)
+			return false;
+
 		// handle each queued client packet
 		if(packet.packetType == PACKET_SEND_MOVE) {
 			if (gameState.currentColorTurn != gameState.playerIDtoColor[packet.clientID]) {
@@ -352,7 +365,7 @@ bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& current
 				if (getPieceAt(gameState.currentChessBoard, packet.chosenStart).color != gameState.playerIDtoColor[packet.clientID]) {
 					printf("MOVE INVALID!!!\n");
 				} else {
-					MoveResult res = movePiece(gameState.currentChessBoard, packet.chosenStart, packet.chosenEnd);
+					MoveResult res = movePiece(&gameState.currentChessBoard, packet.chosenStart, packet.chosenEnd);
 					if ( res < MOVE_VALID ) {
 						printf("MOVE INVALID!!!\n");
 					} else {
@@ -389,7 +402,5 @@ bool handleGameState(GameState& gameState, std::deque<fromClientPacket>& current
 		queueGameState(gameState);
 	}
 
-	// empty queue
-	currentPacketQueue.clear();
 	return true;
 }

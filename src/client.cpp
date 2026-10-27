@@ -7,8 +7,8 @@
 #include <string.h>
 
 #include <thread>
+#include <string>
 #include <vector>
-#include <deque>
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
@@ -16,6 +16,7 @@
 #include "../include/game_state.h"
 #include "../include/packets.h"
 #include "../include/helpers.h"
+#include "../include/my_structs.h"
 #include "../vendor/raylib/include/raylib.h"
 #define RAYGUI_CUSTOM_ICONS
 #define RAYGUI_ICON_MAX_FONT_BACKED 257
@@ -62,18 +63,19 @@ struct RenderMessage {
 std::vector<RenderMessage> gameMessages;
 
 // queued packets
-std::vector<fromServerPacket> recievedServerPackets;
-std::deque<fromServerPacket> currentServerPackets;
+fromServerPacketQueue currentServerPackets = {};
 std::mutex currentServerPacketQueue;
 
-std::deque<fromClientPacket> toServerPacketsQueue;
+fromClientPacketQueue toServerPacketsQueue = {};
 std::mutex toServerPacketsQueueMutex;
 std::condition_variable toServerPacketsQueueReady;
 
 void queuePacket(const fromClientPacket& packet) {
-	toServerPacketsQueueMutex.lock();
-	toServerPacketsQueue.push_back(packet);
-	toServerPacketsQueueMutex.unlock();
+	{
+		std::lock_guard<std::mutex> lock(toServerPacketsQueueMutex);
+		if (enqueueClientPacketQueue(&toServerPacketsQueue, packet) != 0)
+			return_error("outgoing packet queue is full");
+	}
 	toServerPacketsQueueReady.notify_one();
 }
 
@@ -83,11 +85,12 @@ void sendQueuedPackets(int serverFD) {
 		{
 			std::unique_lock<std::mutex> lock(toServerPacketsQueueMutex);
 			toServerPacketsQueueReady.wait(lock, [] {
-				return queueExit || !toServerPacketsQueue.empty();
+				return queueExit || toServerPacketsQueue.size > 0;
 			});
 			if (queueExit) return;
-			packet = toServerPacketsQueue.front();
-			toServerPacketsQueue.pop_front();
+			if (frontClientPacketQueue(&toServerPacketsQueue, &packet) != 0 ||
+				popClientPacketQueue(&toServerPacketsQueue) != 0)
+				return_error("failed to read outgoing packet queue");
 		}
 
 		if(sendAll(serverFD, &packet, sizeof packet, 0) <= 0)
@@ -117,15 +120,16 @@ void handleServerPackets(int serverFD) {
 		{ // misc handling
 		}
 
-		currentServerPacketQueue.lock();
-			currentServerPackets.push_back(serverPacket);
-			recievedServerPackets.push_back(serverPacket);
-		currentServerPacketQueue.unlock();
+		{
+			std::lock_guard<std::mutex> lock(currentServerPacketQueue);
+			if (enqueueServerPacketQueue(&currentServerPackets, serverPacket) != 0)
+				return_error("incoming packet queue is full");
+		}
 
 	}
 }
 
-bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& currentServerPackets);
+bool handleGameState(GameState& gameState, fromServerPacketQueue& currentServerPackets);
 void updateBoard(const GameState& gameState);
 
 int handleConnection(const char* port, const char* addr);
@@ -201,11 +205,11 @@ int main(int argc, char** argv) {
 			toServerPacketsQueueReady.notify_all();
 		}
 
-		currentServerPacketQueue.lock();
-			gameStateMutex.lock();
+		{
+			std::lock_guard<std::mutex> packetLock(currentServerPacketQueue);
+			std::lock_guard<std::mutex> stateLock(gameStateMutex);
 			handleGameState(gameState, currentServerPackets);
-			gameStateMutex.unlock();
-		currentServerPacketQueue.unlock();
+		}
 
 		updateBoard(gameState);
 
@@ -333,10 +337,16 @@ void updateBoard(const GameState& gameState) {
 
 }
 
-bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& currentServerPackets) {
+bool handleGameState(GameState& gameState, fromServerPacketQueue& currentServerPackets) {
 	// handle game loop
 	// PACKET HANDLING
-	for(auto& serverPacket : currentServerPackets) {
+	while (currentServerPackets.size > 0) {
+		fromServerPacket serverPacket;
+		if (frontServerPacketQueue(&currentServerPackets, &serverPacket) != 0)
+			return false;
+		if (popServerPacketQueue(&currentServerPackets) != 0)
+			return false;
+
 		// handle each queued server packet
 		// gameState stuff
 		if(serverPacket.packetType == PACKET_SEND_ID) {
@@ -360,8 +370,6 @@ bool handleGameState(GameState& gameState, std::deque<fromServerPacket>& current
 			printf("Not your turn... dummy...\n");
  	}
 
-	// empty queue
-	currentServerPackets.clear();
 	return true;
 }
 

@@ -1,21 +1,24 @@
 #include "../include/render_assets.h"
-#include <algorithm>
-#include <exception>
-#include <vector>
 #include "../vendor/raylib/include/raygui.h"
+#include <string.h>
 
 #define WHITE_SQUARE_COLOR (GetColor(0xa8a296FF))
 #define BLACK_SQUARE_COLOR (GetColor(0x445240FF))
 
-PiecePosition toBoardPosition(int x, int y, PIECE_COLOR playerColor) {
+struct PiecePosition positions[64];
+int positionsCount = 0;
+static struct PiecePosition cachedStart = {-1, -1};
+static enum PIECE_COLOR cachedTurn = COLOR_NONE;
+
+struct PiecePosition toBoardPosition(int x, int y, enum PIECE_COLOR playerColor) {
 	if(playerColor == COLOR_BLACK) {
 		x = 7 - x;
 		y = 7 - y;
 	}
-	return {x, y};
+	return (struct PiecePosition){x, y};
 }
 
-void renderBoard(const GameState& gameState, RenderInfo info) {
+void renderBoard(const struct GameState gameState, struct RenderInfo info) {
 	if(!gameState.gameStarted || (info.playerColor != COLOR_WHITE && info.playerColor != COLOR_BLACK))
 		return;
 
@@ -24,23 +27,20 @@ void renderBoard(const GameState& gameState, RenderInfo info) {
 	float xStart = squareSize, yStart = squareSize;
 
 	// uhhh render the border of the chessboard
-	DrawRectangleLinesEx({xStart - 5.0f, yStart - 5.0f, squareSize * 8 + 10.0f, squareSize * 8 + 10.0f}, 10.0f, BLACK);
-
-	// possible positions given a chosen cell/square
-	// static so it doesn't recompute ( i think )
-	static std::vector<PiecePosition> positions;
-	static PiecePosition cachedStart = {-1, -1};
-	static PIECE_COLOR cachedTurn = COLOR_NONE;
+	DrawRectangleLinesEx((Rectangle){xStart - 5.0f, yStart - 5.0f, squareSize * 8 + 10.0f, squareSize * 8 + 10.0f}, 10.0f, BLACK);
 
 	bool hasSelection = info.chosenStart.x >= 0 && info.chosenStart.y >= 0;
 	if(!hasSelection || info.chosenStart.x != cachedStart.x || info.chosenStart.y != cachedStart.y || gameState.currentColorTurn != cachedTurn) {
-		positions.clear();
-		cachedStart = hasSelection ? info.chosenStart : PiecePosition{-1, -1};
+
+		positionsCount = 0;
+
+		cachedStart = hasSelection ? info.chosenStart : (PiecePosition){-1, -1};
 		cachedTurn = gameState.currentColorTurn;
+
 		if(hasSelection && getPieceAt(gameState.currentChessBoard, info.chosenStart).color == info.playerColor 
 				&& getPieceAt(gameState.currentChessBoard, info.chosenStart).type != PIECE_NONE
 				&& gameState.currentColorTurn == info.playerColor) {
-			positions = GetAvailableMoves(gameState.currentChessBoard, info.chosenStart);
+			positionsCount = GetAvailableMoves(gameState.currentChessBoard, positions, info.chosenStart);
 		}
 	}
 
@@ -52,15 +52,22 @@ void renderBoard(const GameState& gameState, RenderInfo info) {
 
 	for(int y = 0; y < 8; ++y) {
 		for(int x = 0; x < 8; ++x) {
-			PiecePosition boardPosition = toBoardPosition(x, y, info.playerColor);
+			struct PiecePosition boardPosition = toBoardPosition(x, y, info.playerColor);
 			Color cellColor = (x + y) % 2 ? BLACK_SQUARE_COLOR : WHITE_SQUARE_COLOR;
 			DrawRectangle(xStart, yStart, squareSize, squareSize, cellColor);
 
-			if(std::find_if(positions.begin(), positions.end(), [boardPosition](const PiecePosition& pos) {
-				return pos.x == boardPosition.x && pos.y == boardPosition.y;
-			}) != positions.end()) {
-				DrawRectangle(xStart, yStart, squareSize, squareSize, ColorLerp(cellColor, GREEN, 0.25f));
+			// for loop to find
+			bool found = false;
+			for(int i = 0; i < positionsCount; ++i) {
+				if(positions[i].x == boardPosition.x && positions[i].y == boardPosition.y)
+					found = true;
 			}
+
+			
+
+			positionsCount = 0;
+			if (found)
+				DrawRectangle(xStart, yStart, squareSize, squareSize, ColorLerp(cellColor, GREEN, 0.25f));
 
 			if(hoveringBoard && hoverX == x && hoverY == y) {
 				DrawRectangle(xStart, yStart, squareSize, squareSize, ColorLerp(cellColor, YELLOW, 0.25f));
@@ -83,7 +90,7 @@ void renderBoard(const GameState& gameState, RenderInfo info) {
 	xStart = squareSize, yStart = squareSize;
 	for(int y = 0; y < 8; ++y) {
 		for(int x = 0; x < 8; ++x) {
-			PiecePosition boardPosition = toBoardPosition(x, y, info.playerColor);
+			struct PiecePosition boardPosition = toBoardPosition(x, y, info.playerColor);
 			Color cellColor = (x + y) % 2 ? BLACK_SQUARE_COLOR : WHITE_SQUARE_COLOR;
 			ChessPiece piece = getPieceAt(gameState.currentChessBoard, boardPosition);
 

@@ -1,7 +1,7 @@
 #include "../../include/chess/chess_board.h"
-#include <cmath>
+#include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 
 bool checkRange(const ChessBoard board, PiecePosition pos) {
 	if(pos.x < 0 || pos.x >= 8)
@@ -21,19 +21,19 @@ bool checkMoveRange(const ChessBoard board, PiecePosition start, PiecePosition e
 	return true;
 }
 
-ChessPiece getPieceAt(const ChessBoard& board, PiecePosition pos) {
+ChessPiece getPieceAt(const ChessBoard board, PiecePosition pos) {
 	if(!checkRange(board, pos))
-		return { .type = PIECE_INVALID };
+		return (ChessPiece){ .type = PIECE_INVALID };
 
 	return board.pieces[pos.y][pos.x];
 }
 
-bool isPiecePresent(const ChessBoard& board, PiecePosition position) {
+bool isPiecePresent(const ChessBoard board, PiecePosition position) {
 	return getPieceAt(board, position).type != PIECE_NONE;
 }
 
 
-bool isMoveSafe(const ChessBoard& board, PiecePosition start, PiecePosition end) {
+bool isMoveSafe(const ChessBoard board, PiecePosition start, PiecePosition end) {
     if (!checkMoveRange(board, start, end))
         return false;
 
@@ -47,20 +47,21 @@ bool isMoveSafe(const ChessBoard& board, PiecePosition start, PiecePosition end)
     return !isKingChecked(tempBoard, movingPiece.color);
 }
 
-bool isCaptureSafe(const ChessBoard& board, PiecePosition start, PiecePosition end) {
+bool isCaptureSafe(const ChessBoard board, PiecePosition start, PiecePosition end) {
     return isMoveSafe(board, start, end);
 }
 
-bool isKingChecked(const ChessBoard board, PIECE_COLOR color) {
+bool isKingChecked(const ChessBoard board, enum PIECE_COLOR color) {
     PiecePosition kingPosition = {-1, -1};
 
     // Find the king
     for (int y = 0; y < 8; ++y) {
         for (int x = 0; x < 8; ++x) {
-            const ChessPiece& piece = board.pieces[y][x];
+            const ChessPiece piece = board.pieces[y][x];
 
             if (piece.type == PIECE_KING && piece.color == color) {
-                kingPosition = {x, y};
+                kingPosition.x = x;
+				kingPosition.y = y;
                 break;
             }
         }
@@ -76,7 +77,7 @@ bool isKingChecked(const ChessBoard board, PIECE_COLOR color) {
     // Check for attacks from opposing pieces
     for (int y = 0; y < 8; ++y) {
         for (int x = 0; x < 8; ++x) {
-            const ChessPiece& piece = board.pieces[y][x];
+            const ChessPiece piece = board.pieces[y][x];
             if (piece.type == PIECE_NONE || piece.color == color)
                 continue;
 
@@ -116,7 +117,7 @@ bool isKingChecked(const ChessBoard board, PIECE_COLOR color) {
 
 // check each piece
 // Pawn
-MoveResult isValidPawnMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing) {
+enum MoveResult isValidPawnMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing) {
     if (!checkMoveRange(board, start, end))
         return MOVE_INVALID_OUT_OF_RANGE;
 
@@ -199,7 +200,7 @@ MoveResult isValidPawnMove(const ChessBoard board, PiecePosition start, PiecePos
 
 
 // Rook
-MoveResult isValidRookMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing) {
+enum MoveResult isValidRookMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing) {
     if (!checkMoveRange(board, start, end))
         return MOVE_INVALID_OUT_OF_RANGE;
 
@@ -244,15 +245,15 @@ MoveResult isValidRookMove(const ChessBoard board, PiecePosition start, PiecePos
 
 
  // Knight
-MoveResult isValidKnightMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing) {
+enum MoveResult isValidKnightMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing) {
     if (!checkMoveRange(board, start, end))
         return MOVE_INVALID_OUT_OF_RANGE;
 
     ChessPiece knight = board.pieces[start.y][start.x];
     ChessPiece target = board.pieces[end.y][end.x];
 
-    int dx = fabs(end.x - start.x);
-    int dy = fabs(end.y - start.y);
+    int dx = abs(end.x - start.x);
+    int dy = abs(end.y - start.y);
 
     if (!((dx == 2 && dy == 1) || (dx == 1 && dy == 2)))
         return MOVE_INVALID_OUT_OF_PIECE_RANGE;
@@ -273,7 +274,7 @@ MoveResult isValidKnightMove(const ChessBoard board, PiecePosition start, PieceP
 
 
 // Bishop
-MoveResult isValidBishopMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing) {
+enum MoveResult isValidBishopMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing) {
     if (!checkMoveRange(board, start, end))
         return MOVE_INVALID_OUT_OF_RANGE;
 
@@ -316,15 +317,15 @@ MoveResult isValidBishopMove(const ChessBoard board, PiecePosition start, PieceP
 }
 
 // King
-MoveResult isValidKingMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing) {
+enum MoveResult isValidKingMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing) {
     if (!checkMoveRange(board, start, end))
         return MOVE_INVALID_OUT_OF_RANGE;
 
     ChessPiece king = board.pieces[start.y][start.x];
     ChessPiece target = board.pieces[end.y][end.x];
 
-    int dx = fabs(end.x - start.x);
-    int dy = fabs(end.y - start.y);
+    int dx = abs(end.x - start.x);
+    int dy = abs(end.y - start.y);
 
     // Must move exactly one square in any direction
 	if (!(target.type == PIECE_ROOK && target.color == king.color)) {
@@ -347,15 +348,15 @@ MoveResult isValidKingMove(const ChessBoard board, PiecePosition start, PiecePos
 		int diff = end.x - start.x;
 		if (diff == 3) {
 			// on the right
-			bool present = isPiecePresent(board, {start.x + 1, start.y}) ||
-						   isPiecePresent(board, {start.x + 2, start.y});
+			bool present = isPiecePresent(board, (PiecePosition){start.x + 1, start.y}) ||
+						   isPiecePresent(board, (PiecePosition){start.x + 2, start.y});
 
 			if (present)
 				return MOVE_INVALID_HAS_OBSTACLE;
 			
 			// check if obstacle
-			bool safe = isMoveSafe(board, start, {start.x + 1, start.y}) &&
-					    isMoveSafe(board, start, {start.x + 2, start.y});
+			bool safe = isMoveSafe(board, start, (PiecePosition){start.x + 1, start.y}) &&
+					    isMoveSafe(board, start, (PiecePosition){start.x + 2, start.y});
 
 			if (!safe)
 				return MOVE_INVALID_CANNOT_CASTLE;
@@ -363,16 +364,16 @@ MoveResult isValidKingMove(const ChessBoard board, PiecePosition start, PiecePos
 			return MOVE_VALID_CASTLE;
 		} else if (diff == -4) {
 			// on the left, queen side
-			bool present = isPiecePresent(board, {start.x - 1, start.y}) ||
-						   isPiecePresent(board, {start.x - 2, start.y}) || 
-						   isPiecePresent(board, {start.x - 3, start.y});
+			bool present = isPiecePresent(board, (PiecePosition){start.x - 1, start.y}) ||
+						   isPiecePresent(board, (PiecePosition){start.x - 2, start.y}) || 
+						   isPiecePresent(board, (PiecePosition){start.x - 3, start.y});
 
 			if (present)
 				return MOVE_INVALID_HAS_OBSTACLE;
 			
 			// check if obstacle
-			bool safe = isMoveSafe(board, start, {start.x - 1, start.y}) &&
-					    isMoveSafe(board, start, {start.x - 2, start.y});
+			bool safe = isMoveSafe(board, start, (PiecePosition){start.x - 1, start.y}) &&
+					    isMoveSafe(board, start, (PiecePosition){start.x - 2, start.y});
 
 			if (!safe)
 				return MOVE_INVALID_CANNOT_CASTLE;
@@ -404,12 +405,12 @@ MoveResult isValidKingMove(const ChessBoard board, PiecePosition start, PiecePos
 }
 
 // Queen
-MoveResult isValidQueenMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing) {
+enum MoveResult isValidQueenMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing) {
     if (!checkMoveRange(board, start, end))
         return MOVE_INVALID_OUT_OF_RANGE;
 
-    int dx = fabs(end.x - start.x);
-    int dy = fabs(end.y - start.y);
+    int dx = abs(end.x - start.x);
+    int dy = abs(end.y - start.y);
 
     if (dx == 0 || dy == 0)
         return isValidRookMove(board, start, end, fromKing);
@@ -421,40 +422,38 @@ MoveResult isValidQueenMove(const ChessBoard board, PiecePosition start, PiecePo
 
 }
 
-std::vector<PiecePosition> GetAvailableMoves(const ChessBoard& board, PiecePosition pos) {
+int GetAvailableMoves(const ChessBoard board, PiecePosition positionsBuffer[64], PiecePosition pos){
 	// ideally, only call once per move, not per frame
 	ChessPiece piece = getPieceAt(board, pos);
-	std::vector<PiecePosition> positions;
+	memset(positionsBuffer, 0, sizeof(PiecePosition) * 64);
 
-	if(piece.type == PIECE_NONE)
-		return positions;
-
+	int currentSize = 0;
 	for(int y = 0; y < 8; ++y) {
 		for(int x = 0; x < 8; ++x) {
             switch (piece.type) {
                 case PIECE_PAWN:
-					if (isValidPawnMove(board, pos, {x, y}) >= MOVE_VALID)
-						positions.push_back({x, y});
+					if (isValidPawnMove(board, pos, (PiecePosition){x, y}, false) >= MOVE_VALID)
+						positionsBuffer[currentSize++] = (PiecePosition){x, y}, false;
                     break;
                 case PIECE_KNIGHT:
-					if (isValidKnightMove(board, pos, {x, y}) >= MOVE_VALID)
-						positions.push_back({x, y});
+					if (isValidKnightMove(board, pos, (PiecePosition){x, y}, false) >= MOVE_VALID)
+						positionsBuffer[currentSize++] = (PiecePosition){x, y}, false;
                     break;
                 case PIECE_BISHOP:
-					if (isValidBishopMove(board, pos, {x, y}) >= MOVE_VALID)
-						positions.push_back({x, y});
+					if (isValidBishopMove(board, pos, (PiecePosition){x, y}, false) >= MOVE_VALID)
+						positionsBuffer[currentSize++] = (PiecePosition){x, y}, false;
                     break;
                 case PIECE_ROOK:
-					if (isValidRookMove(board, pos, {x, y}) >= MOVE_VALID)
-						positions.push_back({x, y});
+					if (isValidRookMove(board, pos, (PiecePosition){x, y}, false) >= MOVE_VALID)
+						positionsBuffer[currentSize++] = (PiecePosition){x, y}, false;
                     break;
                 case PIECE_QUEEN:
-					if (isValidQueenMove(board, pos, {x, y}) >= MOVE_VALID)
-						positions.push_back({x, y});
+					if (isValidQueenMove(board, pos, (PiecePosition){x, y}, false) >= MOVE_VALID)
+						positionsBuffer[currentSize++] = (PiecePosition){x, y}, false;
                     break;
                 case PIECE_KING:
-					if (isValidKingMove(board, pos, {x, y}) >= MOVE_VALID)
-						positions.push_back({x, y});
+					if (isValidKingMove(board, pos, (PiecePosition){x, y}, false) >= MOVE_VALID)
+						positionsBuffer[currentSize++] = (PiecePosition){x, y}, false;
                     break;
                 default:
                     break;
@@ -462,5 +461,5 @@ std::vector<PiecePosition> GetAvailableMoves(const ChessBoard& board, PiecePosit
 		}
 	}
 
-	return positions;
+	return currentSize;
 }

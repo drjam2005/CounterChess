@@ -2,33 +2,24 @@
 #ifndef _CHESS_BOARD_H
 #define _CHESS_BOARD_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "chess_piece.h"
-#include <unordered_map>
-#include <string>
+#include <stdbool.h>
 
-struct ChessBoard {
-	ChessPiece pieces[8][8];
-	ChessPiece previousState[8][8];
-};
+typedef struct ChessBoard {
+	struct ChessPiece pieces[8][8];
+	struct ChessPiece previousState[8][8];
+} ChessBoard;
 
-struct PiecePosition {
+typedef struct PiecePosition {
 	int x;
 	int y;
-};
+} PiecePosition;
 
-const ChessBoard standardBoard = {
-	.pieces = {
-		{ {.color = COLOR_BLACK, .type = PIECE_ROOK, .previousType = PIECE_ROOK }, {.color = COLOR_BLACK, .type = PIECE_KNIGHT, .previousType = PIECE_KNIGHT }, {.color = COLOR_BLACK, .type = PIECE_BISHOP, .previousType = PIECE_BISHOP }, {.color = COLOR_BLACK, .type = PIECE_QUEEN, .previousType = PIECE_QUEEN }, {.color = COLOR_BLACK, .type = PIECE_KING, .previousType = PIECE_KING }, {.color = COLOR_BLACK, .type = PIECE_BISHOP, .previousType = PIECE_BISHOP }, {.color = COLOR_BLACK, .type = PIECE_KNIGHT, .previousType = PIECE_KNIGHT }, {.color = COLOR_BLACK, .type = PIECE_ROOK, .previousType = PIECE_ROOK } },
-		{ {.color = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN }, {.color = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN }, {.color = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN }, {.color = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN }, {.color = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN }, {.color = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN }, {.color = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN }, {.color = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN } },
-		{ {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE } },
-		{ {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE } },
-		{ {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE } },
-		{ {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE }, {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE } },
-		{ {.color = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN }, {.color = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN }, {.color = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN }, {.color = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN }, {.color = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN }, {.color = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN }, {.color = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN }, {.color = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN } },
-		{ {.color = COLOR_WHITE, .type = PIECE_ROOK, .previousType = PIECE_ROOK }, {.color = COLOR_WHITE, .type = PIECE_KNIGHT, .previousType = PIECE_KNIGHT }, {.color = COLOR_WHITE, .type = PIECE_BISHOP, .previousType = PIECE_BISHOP }, {.color = COLOR_WHITE, .type = PIECE_QUEEN, .previousType = PIECE_QUEEN }, {.color = COLOR_WHITE, .type = PIECE_KING, .previousType = PIECE_KING }, {.color = COLOR_WHITE, .type = PIECE_BISHOP, .previousType = PIECE_BISHOP }, {.color = COLOR_WHITE, .type = PIECE_KNIGHT, .previousType = PIECE_KNIGHT }, {.color = COLOR_WHITE, .type = PIECE_ROOK, .previousType = PIECE_ROOK } }
-	}
-};
-
+extern const ChessBoard standardBoard;
 
 enum MoveResult {
 	// invalid
@@ -55,31 +46,33 @@ enum MoveResult {
 void print_board(const ChessBoard board);
 bool checkRange(const ChessBoard board, PiecePosition pos);
 bool checkMoveRange(const ChessBoard board, PiecePosition start, PiecePosition end);
-bool isKingChecked(const ChessBoard board, PIECE_COLOR color);
-bool isMoveSafe(const ChessBoard& board, PiecePosition start, PiecePosition end);
-bool isCaptureSafe(const ChessBoard& board, PiecePosition start, PiecePosition end);
-bool isPiecePresent(const ChessBoard& board, PiecePosition position);
-MoveResult movePiece(ChessBoard& board, PiecePosition start, PiecePosition end);
-ChessPiece getPieceAt(const ChessBoard& board, PiecePosition position);
+bool isKingChecked(const ChessBoard board, enum PIECE_COLOR color);
+bool isMoveSafe(const ChessBoard board, PiecePosition start, PiecePosition end);
+bool isCaptureSafe(const ChessBoard board, PiecePosition start, PiecePosition end);
+bool isPiecePresent(const ChessBoard board, PiecePosition position);
+enum MoveResult movePiece(ChessBoard* board, PiecePosition start, PiecePosition end);
+ChessPiece getPieceAt(const ChessBoard board, PiecePosition position);
 
-#include <string>
-std::string PieceToString(PIECE_TYPE type);
+char* PieceToString(enum PIECE_TYPE type);
 
-#include <vector>
-std::vector<PiecePosition> GetAvailableMoves(const ChessBoard& board, PiecePosition pos);
+int GetAvailableMoves(const struct ChessBoard board, struct PiecePosition positionsBuffer[64], struct PiecePosition pos);
 
 // check each piece
 // Pawn
-MoveResult isValidPawnMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing=false);
+enum MoveResult isValidPawnMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing);
 // Rook
-MoveResult isValidRookMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing=false);
+enum MoveResult isValidRookMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing);
 // Knight
-MoveResult isValidKnightMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing=false);
+enum MoveResult isValidKnightMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing);
 // Bishop
-MoveResult isValidBishopMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing=false);
+enum MoveResult isValidBishopMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing);
 // King
-MoveResult isValidKingMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing=false);
+enum MoveResult isValidKingMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing);
 // Queen
-MoveResult isValidQueenMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing=false);
+enum MoveResult isValidQueenMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // _CHESS_BOARD_H
