@@ -2,10 +2,6 @@
 #ifndef _PACKET_H
 #define _PACKET_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "game_state.h"
 
 enum PACKET_TYPE {
@@ -26,7 +22,7 @@ enum PACKET_TYPE {
 	PACKET_COUNT
 };
 
-struct fromServerPacket {
+typedef struct fromServerPacket {
 	// arbitrary data
 	enum PACKET_TYPE packetType;
 	int receivingFD;
@@ -38,9 +34,9 @@ struct fromServerPacket {
 	// for messages
 	int messageFromID;
 	char message[256];
-};
+}fromServerPacket;
 
-struct fromClientPacket {
+typedef struct fromClientPacket {
 	// arbitrary data
 	enum PACKET_TYPE packetType;
 	// only server thing
@@ -51,13 +47,9 @@ struct fromClientPacket {
 	struct PiecePosition chosenEnd;
 
 	char message[256];
-};
+}fromClientPacket;
 
 #define toClientPacket fromServerPacket
 #define toServerPacket fromClientPacket
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // _PACKET_H

@@ -64,8 +64,6 @@ void renderBoard(const struct GameState gameState, struct RenderInfo info) {
 			}
 
 			
-
-			positionsCount = 0;
 			if (found)
 				DrawRectangle(xStart, yStart, squareSize, squareSize, ColorLerp(cellColor, GREEN, 0.25f));
 

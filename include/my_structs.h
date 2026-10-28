@@ -6,21 +6,17 @@
 
 #define MAX_QUEUE_SIZE 256
 
-struct fromClientPacketQueue {
+typedef struct fromClientPacketQueue {
 	struct fromClientPacket data[MAX_QUEUE_SIZE];
 	size_t size;
 	size_t front;
-};
+} fromClientPacketQueue;
 
-struct fromServerPacketQueue {
+typedef struct fromServerPacketQueue {
 	struct fromServerPacket data[MAX_QUEUE_SIZE];
 	size_t size;
 	size_t front;
-};
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+} fromServerPacketQueue;
 
 struct fromClientPacketQueue createClientPacketQueue(void);
 struct fromServerPacketQueue createServerPacketQueue(void);
@@ -35,9 +31,5 @@ int popServerPacketQueue(struct fromServerPacketQueue* queue);
 
 void clearClientPacketQueue(struct fromClientPacketQueue* queue);
 void clearServerPacketQueue(struct fromServerPacketQueue* queue);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // MY_STRUCTS_H

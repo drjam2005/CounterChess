@@ -2,10 +2,6 @@
 #ifndef _CHESS_PIECE_H
 #define _CHESS_PIECE_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdbool.h>
 
 enum PIECE_COLOR {
@@ -42,9 +38,5 @@ typedef struct ChessPiece {
 	bool pawn2Stepped;
 } ChessPiece;
 
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // _CHESS_PIECE_H

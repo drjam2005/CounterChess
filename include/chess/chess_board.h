@@ -2,10 +2,6 @@
 #ifndef _CHESS_BOARD_H
 #define _CHESS_BOARD_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "chess_piece.h"
 #include <stdbool.h>
 
@@ -70,9 +66,5 @@ enum MoveResult isValidBishopMove(const ChessBoard board, PiecePosition start, P
 enum MoveResult isValidKingMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing);
 // Queen
 enum MoveResult isValidQueenMove(const ChessBoard board, PiecePosition start, PiecePosition end, bool fromKing);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // _CHESS_BOARD_H

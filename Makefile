@@ -1,5 +1,5 @@
 # for all
-all: network chess
+all: network 
 
 # for network
 network: client server
@@ -7,16 +7,16 @@ client: ./build/client
 server: ./build/server
 
 # for Chess
-chess: ./build/chessMain
+# chess: ./build/chessMain
 
 ./build/client: ./build/client.o ./build/helpers.o ./build/my_structs.o ./build/chess_board.o ./build/chess_moves.o ./build/render_assets.o | ./build/
-	g++ ./build/client.o ./build/helpers.o ./build/my_structs.o ./build/chess_board.o ./build/chess_moves.o ./build/render_assets.o -o ./build/client -L ./vendor/X11/lib -L ./vendor/raylib/lib/ -Wl,-rpath,./vendor/X11/lib -l:libraylib.a -lX11
+	gcc ./build/client.o ./build/helpers.o ./build/my_structs.o ./build/chess_board.o ./build/chess_moves.o ./build/render_assets.o -o ./build/client -L ./vendor/X11/lib -L ./vendor/raylib/lib/ -Wl,-rpath,./vendor/X11/lib -l:libraylib.a -lX11 -lm
 
 ./build/server: ./build/server.o ./build/helpers.o ./build/my_structs.o ./build/chess_board.o ./build/chess_moves.o | ./build/
-	g++ ./build/server.o ./build/helpers.o ./build/my_structs.o ./build/chess_board.o ./build/chess_moves.o -o ./build/server -L ./vendor/X11/lib -L ./vendor/raylib/lib/ -Wl,-rpath,./vendor/X11/lib -l:libraylib.a -lX11
+	gcc ./build/server.o ./build/helpers.o ./build/my_structs.o ./build/chess_board.o ./build/chess_moves.o -o ./build/server -L ./vendor/X11/lib -L ./vendor/raylib/lib/ -Wl,-rpath,./vendor/X11/lib -l:libraylib.a -lX11 -lm
 
-./build/client.o: ./src/client.cpp ./include/* | ./build/
-	gcc -c ./src/client.cpp -o ./build/client.o -I ./vendor/X11/include
+./build/client.o: ./src/client.c ./include/* | ./build/
+	gcc -c ./src/client.c -o ./build/client.o -I ./vendor/X11/include
 
 ./build/render_assets.o: ./src/render_assets.c ./include* | ./build/
 	gcc -c ./src/render_assets.c -o ./build/render_assets.o
@@ -24,8 +24,8 @@ chess: ./build/chessMain
 ./build/chess_piece_iconset.o: ./vendor/tools/rguiicons_v4.0_linux_x64/chess_piece_iconset.c | ./build/
 	gcc -c ./vendor/tools/rguiicons_v4.0_linux_x64/chess_piece_iconset.c -o ./build/chess_piece_iconset.o
 
-./build/server.o: ./src/server.cpp ./include/* | ./build/
-	g++ -c ./src/server.cpp -o ./build/server.o -I ./vendor/X11/include
+./build/server.o: ./src/server.c ./include/* | ./build/
+	gcc -c ./src/server.c -o ./build/server.o -I ./vendor/X11/include
 
 ./build/helpers.o: ./src/helpers.c ./include/* | ./build/
 	gcc -c ./src/helpers.c -o ./build/helpers.o
@@ -36,8 +36,8 @@ chess: ./build/chessMain
 ./build/chessMain: ./build/chessMain.o ./build/chess_moves.o ./build/chess_board.o
 	g++ -o ./build/chessMain ./build/chessMain.o ./build/chess_moves.o ./build/chess_board.o
 
-./build/chessMain.o: ./src/chess/chessMain.cpp | ./build/
-	g++ -c -o ./build/chessMain.o ./src/chess/chessMain.cpp
+./build/chessMain.o: ./src/chess/chessMain.c | ./build/
+	g++ -c -o ./build/chessMain.o ./src/chess/chessMain.c
 
 ./build/chess_moves.o: ./src/chess/chess_moves.c | ./build/
 	gcc -c -o ./build/chess_moves.o ./src/chess/chess_moves.c

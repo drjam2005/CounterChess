@@ -2,10 +2,6 @@
 #ifndef _GAME_STATE_H
 #define _GAME_STATE_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 // chess implementation
 #include "chess/chess_board.h"
 #include <sys/types.h>
@@ -30,8 +26,5 @@ typedef struct GameState {
 	enum PIECE_COLOR checkedColor;
 } GameState;
 
-#ifdef __cplusplus
-}
-#endif
 
 #endif // _GAME_STATE_H
