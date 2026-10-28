@@ -14,7 +14,7 @@ declare -a HEADER_FILES=($(find ./include/ -type f | sort | grep -E [A-Za-z0-9_]
 # dependencies for building executables
 declare -a BUILD_SERVER=("./build/server.o" "./build/helpers.o" "./build/my_structs.o" "./build/chess_board.o" "./build/chess_moves.o")
 declare -a BUILD_CLIENT=("./build/client.o" "./build/helpers.o" "./build/my_structs.o" "./build/chess_board.o" "./build/chess_moves.o" "./build/render_assets.o")
-declare -a BUILD_MAIN=("./build/chessMain.o" "./build/chess_board.o" "./build/chess_moves.o")
+#declare -a BUILD_MAIN=("./build/chessMain.o" "./build/chess_board.o" "./build/chess_moves.o")
 
 # check if delete the entire directory
 if [[ "${1}" == "clean" ]]; then 
@@ -51,8 +51,8 @@ else
 
 			if [[ "${CHECK_SRC}" == "false" || "${CHECK_HEADER}" == "false" || ! -f "${BUILD_OBJ_FILES[i]}" ]]; then
 				if  [[ "$(echo ${BUILD_SRC_FILES[i]} | grep -q .cpp && echo $?)" == "0" ]]; then
-					g++ -c "${BUILD_SRC_FILES[i]}" -o "${BUILD_OBJ_FILES[i]}" -I ./vendor/X11/include -I ./vendor/raylib/include
-					echo "g++ -c ${BUILD_SRC_FILES[i]} -o ${BUILD_OBJ_FILES[i]} -I ./vendor/X11/include -I ./vendor/raylib/include"
+					gcc -c "${BUILD_SRC_FILES[i]}" -o "${BUILD_OBJ_FILES[i]}" -I ./vendor/X11/include -I ./vendor/raylib/include
+					echo "gcc -c ${BUILD_SRC_FILES[i]} -o ${BUILD_OBJ_FILES[i]} -I ./vendor/X11/include -I ./vendor/raylib/include"
 				else
 					gcc -c "${BUILD_SRC_FILES[i]}" -o "${BUILD_OBJ_FILES[i]}" -I ./vendor/X11/include -I ./vendor/raylib/include
 					echo "gcc -c ${BUILD_SRC_FILES[i]} -o ${BUILD_OBJ_FILES[i]} -I ./vendor/X11/include -I ./vendor/raylib/include"
@@ -101,27 +101,27 @@ else
 
 		# check if the executable is new for server
 		if [[ "${CHECK_SERVER}" == "false" || ! -f "./build/server" ]]; then
-			g++ "${BUILD_SERVER[@]}" -o ./build/server -L ./vendor/X11/lib -L ./vendor/raylib/lib/ -Wl,-rpath,./vendor/X11/lib -l:libraylib.a -lX11
-			echo "g++ ${BUILD_SERVER[@]} -o ./build/server -L ./vendor/X11/lib -L ./vendor/raylib/lib/ -Wl,-rpath,./vendor/X11/lib -l:libraylib.a -lX11"
+			gcc "${BUILD_SERVER[@]}" -o ./build/server -L ./vendor/X11/lib -L ./vendor/raylib/lib/ -Wl,-rpath,./vendor/X11/lib -l:libraylib.a -lX11 -lm
+			echo "gcc ${BUILD_SERVER[@]} -o ./build/server -L ./vendor/X11/lib -L ./vendor/raylib/lib/ -Wl,-rpath,./vendor/X11/lib -l:libraylib.a -lX11 -lm"
 		else
 			echo "'./build/server' dependencies are not new: compilation not needed"
 		fi
 
 		# check if the executable is new for client
 		if [[ "${CHECK_CLIENT}" == "false" || ! -f "./build/client" ]]; then
-			g++ "${BUILD_CLIENT[@]}" -o ./build/client -L ./vendor/X11/lib -L ./vendor/raylib/lib/ -Wl,-rpath,./vendor/X11/lib -l:libraylib.a -lX11
-			echo g++ "${BUILD_CLIENT[@]} -o ./build/client -L ./vendor/X11/lib -L ./vendor/raylib/lib/ -Wl,-rpath,./vendor/X11/lib -l:libraylib.a -lX11"
+			gcc "${BUILD_CLIENT[@]}" -o ./build/client -L ./vendor/X11/lib -L ./vendor/raylib/lib/ -Wl,-rpath,./vendor/X11/lib -l:libraylib.a -lX11 -lm
+			echo gcc "${BUILD_CLIENT[@]} -o ./build/client -L ./vendor/X11/lib -L ./vendor/raylib/lib/ -Wl,-rpath,./vendor/X11/lib -l:libraylib.a -lX11 -lm"
 		else
 			echo "'./build/client' dependencies are not new: compilation not needed"
 		fi
 
 		# check if the executable is new for chessMain
-		if [[ "${CHECK_MAIN}" == "false" || ! -f "./build/chessMain" ]]; then
-			g++ "${BUILD_MAIN[@]}" -o ./build/chessMain
-			echo "g++ ${BUILD_MAIN[@]} -o ./build/chessMain"
-		else
-			echo "'./build/chessMain' dependencies are not new: compilation not needed"
-		fi
+	#	if [[ "${CHECK_MAIN}" == "false" || ! -f "./build/chessMain" ]]; then
+	#		gcc "${BUILD_MAIN[@]}" -o ./build/chessMain
+	#		echo "gcc ${BUILD_MAIN[@]} -o ./build/chessMain"
+	#	else
+	#		echo "'./build/chessMain' dependencies are not new: compilation not needed"
+	#	fi
 	}
 
 	# calling the functions	
