@@ -30,13 +30,12 @@
 		exit(1); \
 	} while(0)
 
-#define swap_turn(state) \
-	do {\
-		if(state.currentColorTurn == COLOR_WHITE)\
-			state.currentColorTurn = COLOR_BLACK;\
-		else \
-			state.currentColorTurn = COLOR_WHITE;\
-	} while(0)
+void swap_turn(GameState* state) {
+	if(state->currentColorTurn == COLOR_WHITE)
+		state->currentColorTurn = COLOR_BLACK;
+	else
+		state->currentColorTurn = COLOR_WHITE;
+}
 
 typedef struct Client {
 	int id;
@@ -419,7 +418,7 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 						else
 							gameState->checkedColor = COLOR_NONE;
 
-						swap_turn((*gameState));
+						swap_turn(gameState);
 						queueGameState(*gameState);
 					}
 				}
