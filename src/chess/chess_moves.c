@@ -480,7 +480,7 @@ bool ifCheckmate(const ChessBoard board, enum PIECE_COLOR color){
 					case PIECE_ROOK:
 					case PIECE_QUEEN:
 					case PIECE_KING:
-						if(GetAvailableMoves(board, positionBuffer, (PiecePosition){x, y}) > 0) return true;
+						if(GetAvailableMoves(board, positionBuffer, (PiecePosition){x, y}) > 0) return false;
 						break;
 					default:
 						break;
