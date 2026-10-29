@@ -463,3 +463,32 @@ int GetAvailableMoves(const ChessBoard board, PiecePosition positionsBuffer[64],
 
 	return currentSize;
 }
+
+bool ifCheckmate(const ChessBoard board, enum PIECE_COLOR color){
+	PiecePosition positionBuffer[64];
+	if(!isKingChecked(board, color))
+		return false;	
+
+	for(int x = 0; x < 8; x++){
+		for(int y = 0; y < 8; y++){
+			ChessPiece test_piece = board.pieces[x][y];
+			if(test_piece.color == color){
+				switch (test_piece.type) {
+					case PIECE_PAWN:
+					case PIECE_KNIGHT:
+					case PIECE_BISHOP:
+					case PIECE_ROOK:
+					case PIECE_QUEEN:
+					case PIECE_KING:
+						if(GetAvailableMoves(board, positionBuffer, (PiecePosition){x, y}) > 0) return true;
+						break;
+					default:
+						break;
+				}
+			}
+		}
+		memset(positionBuffer, 0, sizeof(positionBuffer));
+	}
+
+	return true;
+}
