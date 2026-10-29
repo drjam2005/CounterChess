@@ -33,4 +33,3 @@ to change and optimization and correctness
     - [ ] create another `movePiece...` function that handles the moving of pieces
 - [ ] Have rendering of chess pieces/board be independent of hardcoded values and such
     - [ ] have a more sophisticated system of rendering, use dedicated coordinates for the board and pieces to allow for animations
->>>>>>> C_convert
