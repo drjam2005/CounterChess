@@ -2,7 +2,6 @@
 #ifndef _PACKET_H
 #define _PACKET_H
 
-#include <string>
 #include "game_state.h"
 
 enum PACKET_TYPE {
@@ -23,26 +22,32 @@ enum PACKET_TYPE {
 	PACKET_COUNT
 };
 
-struct fromServerPacket {
+typedef struct fromServerPacket {
 	// arbitrary data
-	PACKET_TYPE packetType;
+	enum PACKET_TYPE packetType;
 	int receivingFD;
 	int providedPlayerID;
-	GameState gameState;
-	char message[256];
-};
+	int yourColor;
 
-struct fromClientPacket {
+	struct GameState gameState;
+
+	// for messages
+	int messageFromID;
+	char message[256];
+}fromServerPacket;
+
+typedef struct fromClientPacket {
 	// arbitrary data
-	PACKET_TYPE packetType;
+	enum PACKET_TYPE packetType;
 	// only server thing
 	int clientID;
 	int clientFD;
 
-	int chosenMove;
+	struct PiecePosition chosenStart;
+	struct PiecePosition chosenEnd;
 
 	char message[256];
-};
+}fromClientPacket;
 
 #define toClientPacket fromServerPacket
 #define toServerPacket fromClientPacket
