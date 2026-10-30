@@ -29,7 +29,8 @@ ChessPiece getPieceAt(const ChessBoard board, PiecePosition pos) {
 }
 
 bool isPiecePresent(const ChessBoard board, PiecePosition position) {
-	return getPieceAt(board, position).type != PIECE_NONE;
+    return checkRange(board, position) &&
+           board.pieces[position.y][position.x].type != PIECE_NONE;
 }
 
 
@@ -40,8 +41,15 @@ bool isMoveSafe(const ChessBoard board, PiecePosition start, PiecePosition end) 
     ChessBoard tempBoard = board;
 
     ChessPiece movingPiece = tempBoard.pieces[start.y][start.x];
+    if (movingPiece.type == PIECE_NONE || movingPiece.type == PIECE_INVALID)
+        return false;
 
-    tempBoard.pieces[start.y][start.x].type = PIECE_NONE;
+    // Remove the entire piece, not only its type.
+    ChessPiece empty = {};
+    empty.color = COLOR_NONE;
+    empty.type = PIECE_NONE;
+    empty.previousType = PIECE_NONE;
+    tempBoard.pieces[start.y][start.x] = empty;
     tempBoard.pieces[end.y][end.x] = movingPiece;
 
     return !isKingChecked(tempBoard, movingPiece.color);
@@ -123,6 +131,11 @@ enum MoveResult isValidPawnMove(const ChessBoard board, PiecePosition start, Pie
 
     ChessPiece pawn = board.pieces[start.y][start.x];
     ChessPiece target = board.pieces[end.y][end.x];
+
+    // A king can be threatened, but never captured.
+    // fromKing=true is used internally when detecting attacks.
+    if (!fromKing && target.type == PIECE_KING)
+        return MOVE_INVALID;
 
     if (pawn.type != PIECE_PAWN)
         return MOVE_INVALID_OUT_OF_PIECE_RANGE;
@@ -207,6 +220,11 @@ enum MoveResult isValidRookMove(const ChessBoard board, PiecePosition start, Pie
     ChessPiece rook = board.pieces[start.y][start.x];
     ChessPiece target = board.pieces[end.y][end.x];
 
+    // A king can be threatened, but never captured.
+    // fromKing=true is used internally when detecting attacks.
+    if (!fromKing && target.type == PIECE_KING)
+        return MOVE_INVALID;
+
     int dx = end.x - start.x;
     int dy = end.y - start.y;
 
@@ -252,6 +270,11 @@ enum MoveResult isValidKnightMove(const ChessBoard board, PiecePosition start, P
     ChessPiece knight = board.pieces[start.y][start.x];
     ChessPiece target = board.pieces[end.y][end.x];
 
+    // A king can be threatened, but never captured.
+    // fromKing=true is used internally when detecting attacks.
+    if (!fromKing && target.type == PIECE_KING)
+        return MOVE_INVALID;
+
     int dx = abs(end.x - start.x);
     int dy = abs(end.y - start.y);
 
@@ -280,6 +303,11 @@ enum MoveResult isValidBishopMove(const ChessBoard board, PiecePosition start, P
 
     ChessPiece bishop = board.pieces[start.y][start.x];
     ChessPiece target = board.pieces[end.y][end.x];
+
+    // A king can be threatened, but never captured.
+    // fromKing=true is used internally when detecting attacks.
+    if (!fromKing && target.type == PIECE_KING)
+        return MOVE_INVALID;
 
     int dx = end.x - start.x;
     int dy = end.y - start.y;
@@ -324,6 +352,11 @@ enum MoveResult isValidKingMove(const ChessBoard board, PiecePosition start, Pie
     ChessPiece king = board.pieces[start.y][start.x];
     ChessPiece target = board.pieces[end.y][end.x];
 
+    // A king can be threatened, but never captured.
+    // fromKing=true is used internally when detecting attacks.
+    if (!fromKing && target.type == PIECE_KING)
+        return MOVE_INVALID;
+
     int dx = abs(end.x - start.x);
     int dy = abs(end.y - start.y);
 
@@ -332,20 +365,22 @@ enum MoveResult isValidKingMove(const ChessBoard board, PiecePosition start, Pie
 		if (dx > 1 || dy > 1 || (dx == 0 && dy == 0))
 			return MOVE_INVALID_OUT_OF_PIECE_RANGE;
 	} else {
-		// Castle
-		printf("user tried to castle!\n");
+        // Castling uses the rook's square as the destination in this project.
+        // Only the original king and corner rook may castle.
+        const int homeRow = (king.color == COLOR_WHITE) ? 7 : 0;
+        const int diff = end.x - start.x;
+        if (king.type != PIECE_KING ||
+            start.x != 4 || start.y != homeRow || end.y != homeRow ||
+            !((diff == 3 && end.x == 7) || (diff == -4 && end.x == 0)))
+            return MOVE_INVALID_CANNOT_CASTLE;
 
-		if (target.type != PIECE_ROOK || target.color != king.color)
-			return MOVE_INVALID_CANNOT_CASTLE;
-		
 		if (isKingChecked(board, king.color))
 			return MOVE_INVALID_CANNOT_CASTLE;
 
 		if (king.hasMoved || target.hasMoved)
 			return MOVE_INVALID_CANNOT_CASTLE;
 
-		// check direction
-		int diff = end.x - start.x;
+		// Check the clear and safe squares between the king and rook.
 		if (diff == 3) {
 			// on the right
 			bool present = isPiecePresent(board, (PiecePosition){start.x + 1, start.y}) ||
@@ -433,27 +468,27 @@ int GetAvailableMoves(const ChessBoard board, PiecePosition positionsBuffer[64],
             switch (piece.type) {
                 case PIECE_PAWN:
 					if (isValidPawnMove(board, pos, (PiecePosition){x, y}, false) >= MOVE_VALID)
-						positionsBuffer[currentSize++] = (PiecePosition){x, y}, false;
+						positionsBuffer[currentSize++] = (PiecePosition){x, y};
                     break;
                 case PIECE_KNIGHT:
 					if (isValidKnightMove(board, pos, (PiecePosition){x, y}, false) >= MOVE_VALID)
-						positionsBuffer[currentSize++] = (PiecePosition){x, y}, false;
+						positionsBuffer[currentSize++] = (PiecePosition){x, y};
                     break;
                 case PIECE_BISHOP:
 					if (isValidBishopMove(board, pos, (PiecePosition){x, y}, false) >= MOVE_VALID)
-						positionsBuffer[currentSize++] = (PiecePosition){x, y}, false;
+						positionsBuffer[currentSize++] = (PiecePosition){x, y};
                     break;
                 case PIECE_ROOK:
 					if (isValidRookMove(board, pos, (PiecePosition){x, y}, false) >= MOVE_VALID)
-						positionsBuffer[currentSize++] = (PiecePosition){x, y}, false;
+						positionsBuffer[currentSize++] = (PiecePosition){x, y};
                     break;
                 case PIECE_QUEEN:
 					if (isValidQueenMove(board, pos, (PiecePosition){x, y}, false) >= MOVE_VALID)
-						positionsBuffer[currentSize++] = (PiecePosition){x, y}, false;
+						positionsBuffer[currentSize++] = (PiecePosition){x, y};
                     break;
                 case PIECE_KING:
 					if (isValidKingMove(board, pos, (PiecePosition){x, y}, false) >= MOVE_VALID)
-						positionsBuffer[currentSize++] = (PiecePosition){x, y}, false;
+						positionsBuffer[currentSize++] = (PiecePosition){x, y};
                     break;
                 default:
                     break;
@@ -471,7 +506,7 @@ bool ifCheckmate(const ChessBoard board, enum PIECE_COLOR color){
 	PiecePosition positionBuffer[64];
 	for(int x = 0; x < 8; x++){
 		for(int y = 0; y < 8; y++){
-			ChessPiece test_piece = board.pieces[x][y];
+			ChessPiece test_piece = board.pieces[y][x];
 			if(test_piece.color == color){
 				switch (test_piece.type) {
 					case PIECE_PAWN:
@@ -500,7 +535,7 @@ bool ifStalemate(const ChessBoard board, enum PIECE_COLOR color){
 	PiecePosition positionBuffer[64];
 	for(int x = 0; x < 8; x++){
 		for(int y = 0; y < 8; y++){
-			ChessPiece test_piece = board.pieces[x][y];
+			ChessPiece test_piece = board.pieces[y][x];
 			if(test_piece.color == color){
 				switch (test_piece.type) {
 					case PIECE_PAWN:
