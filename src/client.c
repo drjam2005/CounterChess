@@ -141,7 +141,9 @@ void* handleServerPackets(void* sFD) {
 }
 
 bool handleGameState(GameState* gameState, fromServerPacketQueue* currentServerPackets);
-void updateBoard(const GameState gameState);
+void updateBoard(GameState* gameState);
+
+void render_checkmate_screen(enum PIECE_COLOR clr);
 
 int handleConnection(const char* port, const char* addr);
 
@@ -222,7 +224,7 @@ int main(int argc, char** argv) {
 			pthread_mutex_unlock(&gameStateMutex);
 		}
 
-		updateBoard(gameState);
+		updateBoard(&gameState);
 
 		BeginDrawing();
 		ClearBackground(WHITE);
@@ -244,6 +246,10 @@ int main(int argc, char** argv) {
 			renderBoard(gameState, info);
 		else
 			DrawText("Waiting for Players...", 100, 100, 20, BLACK);
+
+		if(gameState.isCheckmate) {
+			render_checkmate_screen(gameState.checkedColor);
+		}
 
 		// Message stuff
 		if (GuiTextBox(
@@ -296,12 +302,26 @@ int main(int argc, char** argv) {
 	return 0;
 }
 
-void updateBoard(const GameState gameState) {
-	if (gameState.currentColorTurn != myColor)
+void render_checkmate_screen(enum PIECE_COLOR clr) {
+	if(clr == COLOR_WHITE) {
+		DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), GetColor(0xFFFFFF55));
+		DrawText("WHITE IS CHECKMATED\nBLACK WINS!\n", 100, 100, 40, BLACK);
+	} else if (clr == COLOR_BLACK) {
+		DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), GetColor(0xFFFFFF55));
+		DrawText("BLACK IS CHECKMATED\nWHITE WINS!\n", 100, 100, 40, BLACK);
+	}
+	return;
+}
+
+void updateBoard(GameState* gameState) {
+	if (gameState->currentColorTurn != myColor)
 		return;
 
-    if (!gameState.gameStarted)
+    if (!gameState->gameStarted)
         return;
+
+	if (gameState->isCheckmate)
+		return;
 
 	if (!IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
 		return;
@@ -339,6 +359,13 @@ void updateBoard(const GameState gameState) {
 		packet.chosenStart = chosenStart;
 		packet.chosenEnd = chosenEnd;
 		queuePacket(packet);
+
+		// temporary update own board for smooth client-side rendering
+		ChessPiece tempPiece = gameState->currentChessBoard.pieces[chosenStart.y][chosenStart.x];
+		if(tempPiece.type != PIECE_NONE) {
+			gameState->currentChessBoard.pieces[chosenEnd.y][chosenEnd.x] = tempPiece;
+			gameState->currentChessBoard.pieces[chosenStart.y][chosenStart.x].type = PIECE_NONE;
+		}
 
 		// reset start
 		chosenStart = (PiecePosition){-1, -1};

@@ -1,4 +1,5 @@
 #include <pthread.h>
+#include <sys/param.h>
 #include <stdatomic.h>
 #include <bits/pthreadtypes.h>
 #include <sys/types.h>
@@ -18,8 +19,6 @@
 #include "../vendor/raylib/include/raylib.h"
 #define RAYGUI_IMPLEMENTATION
 #include "../vendor/raylib/include/raygui.h"
-
-#define FONT_SIZE 20
 
 #define return_error(...) \
 	do {\
@@ -44,7 +43,7 @@ typedef struct Client {
 
 // global variables
 // game state
-GameState gameState;
+GameState gameState = {0};
 pthread_mutex_t gameStateMutex = PTHREAD_MUTEX_INITIALIZER;
 atomic_bool queueExit = false;
 bool broadcastGameState = false;
@@ -214,6 +213,9 @@ void *acceptClients(void* serverfd) {
 			if(gameState.currentPlayerCount == MAX_PLAYERS) {
 				// game start
 				gameState.gameStarted = true;
+				gameState.isCheckmate = false;
+				gameState.isRotated = false;
+				gameState.checkedColor = COLOR_NONE;
 				gameState.currentPlayerIDTurn = 1;
 				gameState.currentColorTurn = COLOR_WHITE;
 				gameState.currentChessBoard = standardBoard;
@@ -275,7 +277,7 @@ int main(int argc, char** argv) {
 
 	// initialize rendering
 	SetTraceLogLevel(LOG_NONE);
-	InitWindow(800, 600, "Server");
+	InitWindow(800, 600, "CounterChess: Server");
 	SetTargetFPS(60);
 	SetExitKey(KEY_NULL);
 
@@ -316,28 +318,37 @@ int main(int argc, char** argv) {
 		BeginDrawing();
 		ClearBackground(RAYWHITE);
 
-		DrawText("This is server\n", 20, 20, FONT_SIZE, BLACK);
-		DrawText(TextFormat("Player Count: %d\n", stateSnapshot.currentPlayerCount), 20, 40, FONT_SIZE, BLACK);
-		DrawText(TextFormat("Current turn: %d\n", stateSnapshot.currentPlayerIDTurn), 20, 60, FONT_SIZE, BLACK);
+		size_t FONT_SIZE = GetScreenHeight()/30.0f;
 
-		int y = 0;
-		int i = 0;
-		{
+		DrawText(TextFormat("Player Count: %d\n", stateSnapshot.currentPlayerCount), 20, FONT_SIZE, FONT_SIZE, BLACK);
+		switch(stateSnapshot.currentColorTurn) {
+			case COLOR_WHITE:
+				DrawText("Current Turn: WHITE", 20, FONT_SIZE+FONT_SIZE, FONT_SIZE, BLACK);
+				break;
+			case COLOR_BLACK:
+				DrawText("Current Turn: BLACK", 20, FONT_SIZE+FONT_SIZE, FONT_SIZE, BLACK);
+				break;
+			default:
+				break;
+		}
+
+		int i = recievedClientPacketCount;
+		DrawText("Client Packet Logs:", 20, FONT_SIZE*3.5f, FONT_SIZE, BLACK);
+		DrawRectangle(20, FONT_SIZE*5, GetScreenWidth()-40, FONT_SIZE*20, GRAY);
 		pthread_mutex_lock(&clientPacketQueueMutex);
-			for (size_t packetIndex = 0; packetIndex < recievedClientPacketCount; ++packetIndex) {
-				fromClientPacket* packet = &recievedClientPackets[packetIndex];
+			for (size_t packetIndex = 0; packetIndex < 20 && packetIndex < recievedClientPacketCount; ++packetIndex) {
+				int index = recievedClientPacketCount - 1 - packetIndex;
+				fromClientPacket* packet = &recievedClientPackets[index];
+				char* packet_type;
 				if(packet->packetType == PACKET_SEND_MOVE) {
-					DrawText(TextFormat("%d. packet (ClientID: %d) SEND_MOVE\n", ++i, packet->clientID),
-							20, 80+y, FONT_SIZE, BLACK);
+					packet_type = "PACKET_SEND_MOVE";
 				}
 				if(packet->packetType == PACKET_SEND_MESSAGE) {
-					DrawText(TextFormat("%d. packet (ClientID: %d) MESSAGE: %s\n", ++i, packet->clientID, packet->message),
-							20, 80+y, FONT_SIZE, BLACK);
+					packet_type = "PACKET_SEND_MESSAGE";
 				}
-				y += FONT_SIZE + 5;
+				DrawText(TextFormat("%d. packet (ClientID: %d) TYPE: %s\n", i--, packet->clientID, packet_type), 20, (FONT_SIZE*23) - (packetIndex * FONT_SIZE), FONT_SIZE, BLACK);
 			}
 		pthread_mutex_unlock(&clientPacketQueueMutex);
-		}
 
 		EndDrawing();
 	}
@@ -373,6 +384,19 @@ void handleClientDisconnect(int clientFD, int clientID) {
 				break;
 			}
 		}
+
+		// check if all disconnected
+		bool stillPlayer = false;
+		for(int i = 1; i <= MAX_PLAYERS; ++i) {
+			if(gameState.playerIDtoFD[i] != -1) {
+				stillPlayer = true;
+				break;
+			}
+		}
+
+		if(!stillPlayer)
+			memset(&gameState, 0, sizeof(GameState));
+
 		if (!queueExit)
 			broadcastGameState = true;
 	pthread_mutex_unlock(&gameStateMutex);
@@ -411,16 +435,25 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 						bool isWhiteChecked = isKingChecked(gameState->currentChessBoard, COLOR_WHITE);
 						bool isBlackChecked = isKingChecked(gameState->currentChessBoard, COLOR_BLACK);
 
-						if(isWhiteChecked)
+						gameState->isCheckmate = false;
+						if (isWhiteChecked) {
 							gameState->checkedColor = COLOR_WHITE;
-						else if(isBlackChecked)
+							if(ifCheckmate(gameState->currentChessBoard, COLOR_WHITE))
+								gameState->isCheckmate = true;
+						}
+						else if(isBlackChecked) {
 							gameState->checkedColor = COLOR_BLACK;
+							if(ifCheckmate(gameState->currentChessBoard, COLOR_BLACK))
+								gameState->isCheckmate = true;
+						}
 						else
 							gameState->checkedColor = COLOR_NONE;
 
+						printf("Checkmate!\n");
+
 						swap_turn(gameState);
-						queueGameState(*gameState);
 					}
+					queueGameState(*gameState);
 				}
 			}
 		}

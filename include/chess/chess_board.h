@@ -42,10 +42,14 @@ enum MoveResult {
 void print_board(const ChessBoard board);
 bool checkRange(const ChessBoard board, PiecePosition pos);
 bool checkMoveRange(const ChessBoard board, PiecePosition start, PiecePosition end);
-bool isKingChecked(const ChessBoard board, enum PIECE_COLOR color);
+
 bool isMoveSafe(const ChessBoard board, PiecePosition start, PiecePosition end);
 bool isCaptureSafe(const ChessBoard board, PiecePosition start, PiecePosition end);
 bool isPiecePresent(const ChessBoard board, PiecePosition position);
+
+bool isKingChecked(const ChessBoard board, enum PIECE_COLOR color);
+bool ifCheckmate(const ChessBoard board, enum PIECE_COLOR color);
+bool ifStalemate(const ChessBoard board, enum PIECE_COLOR color);
 enum MoveResult movePiece(ChessBoard* board, PiecePosition start, PiecePosition end);
 ChessPiece getPieceAt(const ChessBoard board, PiecePosition position);
 

@@ -15,15 +15,17 @@ typedef struct GameState {
 	enum PIECE_COLOR playerIDtoColor[MAX_PLAYERS + 1];
 	size_t currentPlayerCount;
 
+	// chess game
+	bool gameStarted;
 	int currentPlayerIDTurn;
 	enum PIECE_COLOR currentColorTurn;
 
-	bool gameStarted;
 
 	// chessBoard
 	struct ChessBoard currentChessBoard;
 	bool isRotated;
 	enum PIECE_COLOR checkedColor;
+	bool isCheckmate;
 } GameState;
 
 #endif // _GAME_STATE_H
