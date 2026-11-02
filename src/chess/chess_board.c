@@ -138,11 +138,8 @@ void print_board(const ChessBoard board) {
     }
 }
 
-// Execute a move ONLY after the corresponding chess_moves.cpp validator
-// accepts it. This function retains the project's convention that castling
-// is requested by moving the king onto its friendly corner rook.
-enum MoveResult movePiece(ChessBoard* board, PiecePosition start, PiecePosition end) {
-    if (board == nullptr)
+enum MoveResult evaluateMove(ChessBoard* board, PiecePosition start, PiecePosition end) {
+    if (board == NULL)
         return MOVE_INVALID;
 
     if (!checkMoveRange(*board, start, end))
@@ -182,11 +179,21 @@ enum MoveResult movePiece(ChessBoard* board, PiecePosition start, PiecePosition 
             return MOVE_INVALID;
     }
 
-    const bool castle = (result == MOVE_VALID_CASTLE);
-    if (!castle && result < MOVE_VALID)
+	return result;
+}
+
+// Castling is requested by moving the king onto its friendly corner rook.
+enum MoveResult movePiece(ChessBoard* board, PiecePosition start, PiecePosition end) {
+    enum MoveResult result = evaluateMove(board, start, end);
+    if (result < MOVE_VALID)
         return result;
 
-    // Keep these safeguards even if a validator changes later.
+    ChessPiece piece = board->pieces[start.y][start.x];
+    ChessPiece target = board->pieces[end.y][end.x];
+
+    const bool castle = (result == MOVE_VALID_CASTLE);
+
+    // Guard against invalid captures if a move validator changes.
     if (!castle && target.type != PIECE_NONE &&
         (target.color == piece.color || target.type == PIECE_KING))
         return MOVE_INVALID;

@@ -1,6 +1,5 @@
 #include "../../include/chess/chess_board.h"
 #include <string.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 bool checkRange(const ChessBoard board, PiecePosition pos) {

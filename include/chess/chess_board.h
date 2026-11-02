@@ -50,7 +50,9 @@ bool isPiecePresent(const ChessBoard board, PiecePosition position);
 bool isKingChecked(const ChessBoard board, enum PIECE_COLOR color);
 bool ifCheckmate(const ChessBoard board, enum PIECE_COLOR color);
 bool ifStalemate(const ChessBoard board, enum PIECE_COLOR color);
+enum MoveResult evaluateMove(ChessBoard* board, PiecePosition start, PiecePosition end);
 enum MoveResult movePiece(ChessBoard* board, PiecePosition start, PiecePosition end);
+
 ChessPiece getPieceAt(const ChessBoard board, PiecePosition position);
 
 char* PieceToString(enum PIECE_TYPE type);
