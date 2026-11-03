@@ -377,11 +377,11 @@ void updateBoard(GameState* gameState) {
 		queuePacket(packet);
 
 		// temporary update own board for smooth client-side rendering
-		ChessPiece tempPiece = gameState->currentChessBoard.pieces[chosenStart.y][chosenStart.x];
-		if(tempPiece.type != PIECE_NONE) {
-			gameState->currentChessBoard.pieces[chosenEnd.y][chosenEnd.x] = tempPiece;
-			gameState->currentChessBoard.pieces[chosenStart.y][chosenStart.x].type = PIECE_NONE;
-		}
+//		ChessPiece tempPiece = gameState->currentChessBoard.pieces[chosenStart.y][chosenStart.x];
+//		if(tempPiece.type != PIECE_NONE) {
+//			gameState->currentChessBoard.pieces[chosenEnd.y][chosenEnd.x] = tempPiece;
+//			gameState->currentChessBoard.pieces[chosenStart.y][chosenStart.x].type = PIECE_NONE;
+//		}
 
 		// reset start
 		chosenStart = (PiecePosition){-1, -1};
