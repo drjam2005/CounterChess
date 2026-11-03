@@ -253,6 +253,7 @@ int main(int argc, char** argv) {
 		}
 		if(gameState.isStalemate) {
 			render_stalemate_screen(gameState.stalematedColor);
+			printf("stalemate!!\n");
 		}
 
 		// Message stuff

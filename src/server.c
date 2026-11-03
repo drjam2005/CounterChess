@@ -450,6 +450,8 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 							bool isStaleMate = ifStalemate(gameState->currentChessBoard, colorToCheck);
 							gameState->isStalemate = isStaleMate;
 							gameState->stalematedColor = colorToCheck;
+							if(isStaleMate)
+								printf("stalemate!!\n");
 						}
 
 						printf("Checkmate!\n");
