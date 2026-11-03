@@ -427,7 +427,7 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 				if (getPieceAt(gameState->currentChessBoard, packet.chosenStart).color != gameState->playerIDtoColor[packet.clientID]) {
 					printf("MOVE INVALID!!!\n");
 				} else {
-					enum MoveResult res = movePiece(&gameState->currentChessBoard, packet.chosenStart, packet.chosenEnd);
+					enum MoveResult res = movePiece(&gameState->currentChessBoard, packet.chosenStart, packet.chosenEnd, packet.chosenType);
 					if ( res < MOVE_VALID ) {
 						printf("MOVE INVALID!!!\n");
 					} else {
@@ -446,8 +446,12 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 							if(ifCheckmate(gameState->currentChessBoard, COLOR_BLACK))
 								gameState->isCheckmate = true;
 						}
-						else
-							gameState->checkedColor = COLOR_NONE;
+						else {
+							enum PIECE_COLOR colorToCheck = (gameState->currentColorTurn == COLOR_WHITE) ? COLOR_WHITE : COLOR_BLACK;
+							bool isStaleMate = ifStalemate(gameState->currentChessBoard, colorToCheck);
+							gameState->isStalemate = isStaleMate;
+							gameState->stalematedColor = colorToCheck;
+						}
 
 						printf("Checkmate!\n");
 

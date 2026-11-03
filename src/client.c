@@ -144,6 +144,7 @@ bool handleGameState(GameState* gameState, fromServerPacketQueue* currentServerP
 void updateBoard(GameState* gameState);
 
 void render_checkmate_screen(enum PIECE_COLOR clr);
+void render_stalemate_screen(enum PIECE_COLOR clr);
 
 int handleConnection(const char* port, const char* addr);
 
@@ -237,7 +238,7 @@ int main(int argc, char** argv) {
 		}
 
 		// main board
-		RenderInfo info = {
+		struct RenderInfo info = {
 			.chosenStart = chosenStart,
 			.playerColor = myColor
 		};
@@ -249,6 +250,9 @@ int main(int argc, char** argv) {
 
 		if(gameState.isCheckmate) {
 			render_checkmate_screen(gameState.checkedColor);
+		}
+		if(gameState.isStalemate) {
+			render_stalemate_screen(gameState.stalematedColor);
 		}
 
 		// Message stuff
@@ -313,6 +317,17 @@ void render_checkmate_screen(enum PIECE_COLOR clr) {
 	return;
 }
 
+void render_stalemate_screen(enum PIECE_COLOR clr) {
+	if(clr == COLOR_WHITE) {
+		DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), GetColor(0xFFFFFF55));
+		DrawText("WHITE IS STALEMATED\nBLACK WINS!\n", 100, 100, 40, BLACK);
+	} else if (clr == COLOR_BLACK) {
+		DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), GetColor(0xFFFFFF55));
+		DrawText("BLACK IS STALEMATED\nWHITE WINS!\n", 100, 100, 40, BLACK);
+	}
+	return;
+}
+
 void updateBoard(GameState* gameState) {
 	if (gameState->currentColorTurn != myColor)
 		return;
@@ -358,6 +373,7 @@ void updateBoard(GameState* gameState) {
 		packet.packetType = PACKET_SEND_MOVE;
 		packet.chosenStart = chosenStart;
 		packet.chosenEnd = chosenEnd;
+		packet.chosenType = PIECE_NONE;
 		queuePacket(packet);
 
 		// temporary update own board for smooth client-side rendering

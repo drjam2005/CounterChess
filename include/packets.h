@@ -47,6 +47,7 @@ typedef struct fromClientPacket {
 	struct PiecePosition chosenEnd;
 
 	char message[256];
+	enum PIECE_TYPE chosenType;
 }fromClientPacket;
 
 #define toClientPacket fromServerPacket

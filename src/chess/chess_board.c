@@ -183,7 +183,7 @@ enum MoveResult evaluateMove(ChessBoard* board, PiecePosition start, PiecePositi
 }
 
 // Castling is requested by moving the king onto its friendly corner rook.
-enum MoveResult movePiece(ChessBoard* board, PiecePosition start, PiecePosition end) {
+enum MoveResult movePiece(ChessBoard* board, PiecePosition start, PiecePosition end, enum PIECE_TYPE providedType) {
     enum MoveResult result = evaluateMove(board, start, end);
     if (result < MOVE_VALID)
         return result;
