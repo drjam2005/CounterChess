@@ -447,7 +447,7 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 								gameState->isCheckmate = true;
 						} else {
             gameState->checkedColor = COLOR_NONE;
-							enum PIECE_COLOR colorToCheck = (gameState->currentColorTurn == COLOR_WHITE) ? COLOR_WHITE : COLOR_BLACK;
+							enum PIECE_COLOR colorToCheck = (gameState->currentColorTurn == COLOR_BLACK) ? COLOR_WHITE : COLOR_BLACK;
 							bool isStaleMate = ifStalemate(gameState->currentChessBoard, colorToCheck);
 							gameState->isStalemate = isStaleMate;
 							gameState->stalematedColor = colorToCheck;
