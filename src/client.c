@@ -369,6 +369,11 @@ void updateBoard(GameState* gameState) {
 
 		chosenEnd = (PiecePosition){x, y};
 
+		// TODO:
+		//	   check if chosen piece is PAWN and chosenEnd is promotion for such
+		//	   pawn, then we should alert the client to have the user choose their
+		//	   piece
+
 		// queue sending packet
 		fromClientPacket packet;
 		packet.packetType = PACKET_SEND_MOVE;

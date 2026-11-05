@@ -17,7 +17,7 @@ typedef struct PiecePosition {
 
 extern const ChessBoard standardBoard;
 
-enum MoveResult {
+typedef enum MoveResult {
 	// invalid
 	MOVE_INVALID = 0,
 	MOVE_INVALID_OUT_OF_RANGE,
@@ -36,7 +36,7 @@ enum MoveResult {
 	MOVE_VALID_CHECK,
 
 	MOVE_COUNT
-};
+} MoveResult;
 
 // general
 void print_board(const ChessBoard board);
