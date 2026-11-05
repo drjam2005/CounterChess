@@ -149,7 +149,6 @@ enum MoveResult evaluateMove(ChessBoard* board, PiecePosition start, PiecePositi
         return MOVE_INVALID;
 
     ChessPiece piece = board->pieces[start.y][start.x];
-    ChessPiece target = board->pieces[end.y][end.x];
 
     if (piece.type == PIECE_NONE || piece.type == PIECE_INVALID ||
         piece.color == COLOR_NONE)
@@ -263,12 +262,28 @@ enum MoveResult movePiece(ChessBoard* board, PiecePosition start, PiecePosition 
         piece.hasMoved = true;
         piece.pawn2Stepped = pawnDoubleStep;
 
-        // Simple default promotion: pawn -> queen. Its previousType is
-        // intentionally retained as PAWN for any tracking that uses it.
+        // Pawn promotion happens on the same move the pawn reaches the
+        // opposite back rank, including a legal capture on that rank.
+        // providedType selects Queen, Rook, Bishop, or Knight.
+        // For compatibility with callers that pass PIECE_NONE (or another
+        // invalid choice), default to a Queen.
         if (piece.type == PIECE_PAWN &&
             ((piece.color == COLOR_WHITE && end.y == 0) ||
              (piece.color == COLOR_BLACK && end.y == 7))) {
-            piece.type = PIECE_QUEEN;
+            switch (providedType) {
+                case PIECE_QUEEN:
+                case PIECE_ROOK:
+                case PIECE_BISHOP:
+                case PIECE_KNIGHT:
+                    piece.type = providedType;
+                    break;
+                default:
+                    piece.type = PIECE_QUEEN;
+                    break;
+            }
+
+            // Keep original pawn identity for tracking in this project.
+            piece.previousType = PIECE_PAWN;
             piece.pawn2Stepped = false;
         }
 
