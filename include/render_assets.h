@@ -10,8 +10,10 @@
 typedef struct RenderInfo {
 	struct PiecePosition chosenStart;
 	enum PIECE_COLOR playerColor;
+	bool isPromoting;
 } RenderInfo;
 
 void renderBoard(const struct GameState gameState, struct RenderInfo info);
+struct PiecePosition toBoardPosition(int x, int y, enum PIECE_COLOR playerColor);
 
 #endif // _RENDER_ASSETS_H

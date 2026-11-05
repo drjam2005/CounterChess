@@ -42,8 +42,11 @@ int clientID;
 enum PIECE_COLOR myColor;
 char messageBox[256];
 bool messageEditMode = true;
+bool isPromoting = false;
+bool promotionOpenedThisFrame = false;
 atomic_bool queueExit = false;
 int errno = 0;
+enum PIECE_TYPE chosenType = PIECE_NONE;
 
 // for inputting
 char ipBox[256] = "0.0.0.0";
@@ -144,7 +147,8 @@ bool handleGameState(GameState* gameState, fromServerPacketQueue* currentServerP
 void updateBoard(GameState* gameState);
 
 void render_checkmate_screen(enum PIECE_COLOR clr);
-void render_stalemate_screen(enum PIECE_COLOR clr);
+void render_stalemate_screen();
+void get_promotion_piece(PiecePosition position, enum PIECE_COLOR clr);
 
 int handleConnection(const char* port, const char* addr);
 
@@ -213,6 +217,7 @@ int main(int argc, char** argv) {
 		}
 
 		// game loop
+		promotionOpenedThisFrame = false;
 		if(IsKeyPressed(KEY_ESCAPE) || WindowShouldClose()) {
 			stopPacketSender();
 		}
@@ -240,7 +245,8 @@ int main(int argc, char** argv) {
 		// main board
 		struct RenderInfo info = {
 			.chosenStart = chosenStart,
-			.playerColor = myColor
+			.playerColor = myColor,
+			.isPromoting = isPromoting
 		};
 
 		if (gameState.gameStarted) 
@@ -252,8 +258,12 @@ int main(int argc, char** argv) {
 			render_checkmate_screen(gameState.checkedColor);
 		}
 		if(gameState.isStalemate) {
-			render_stalemate_screen(gameState.stalematedColor);
+			render_stalemate_screen();
 			printf("stalemate!!\n");
+		}
+
+		if(isPromoting) {
+			get_promotion_piece(chosenEnd, myColor);
 		}
 
 		// Message stuff
@@ -318,14 +328,58 @@ void render_checkmate_screen(enum PIECE_COLOR clr) {
 	return;
 }
 
-void render_stalemate_screen(enum PIECE_COLOR clr) {
-	if(clr == COLOR_WHITE) {
-		DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), GetColor(0xFFFFFF55));
-		DrawText("WHITE IS STALEMATED\nBLACK WINS!\n", 100, 100, 40, BLACK);
-	} else if (clr == COLOR_BLACK) {
-		DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), GetColor(0xFFFFFF55));
-		DrawText("BLACK IS STALEMATED\nWHITE WINS!\n", 100, 100, 40, BLACK);
+void render_stalemate_screen() {
+
+	DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), GetColor(0xFFFFFF55));
+	DrawText("STALEMATE!!! DRAW!!!\n", 100, 100, 40, BLACK);
+
+	return;
+}
+
+void get_promotion_piece(PiecePosition position, enum PIECE_COLOR clr) {
+	DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), GetColor(0xFFFFFF55));
+
+	PiecePosition rawPos = toBoardPosition(chosenEnd.x, chosenEnd.y, clr);
+	float squareSize = GetScreenHeight()/10.0f;
+	int pixelSize = squareSize/15;
+	
+	DrawRectangle((chosenEnd.x+1) * squareSize, (chosenEnd.y+1) * squareSize, squareSize, squareSize, RED);
+	DrawRectangle((chosenEnd.x+1) * squareSize, (chosenEnd.y+2) * squareSize, squareSize, squareSize, RED);
+	DrawRectangle((chosenEnd.x+1) * squareSize, (chosenEnd.y+3) * squareSize, squareSize, squareSize, RED);
+	DrawRectangle((chosenEnd.x+1) * squareSize, (chosenEnd.y+4) * squareSize, squareSize, squareSize, RED);
+
+	GuiDrawIcon(PIECE_QUEEN  + 256, (chosenEnd.x+1) * squareSize, (chosenEnd.y+1)*squareSize, pixelSize, clr == COLOR_WHITE ? WHITE : BLACK);
+	GuiDrawIcon(PIECE_KNIGHT + 256, (chosenEnd.x+1) * squareSize, (chosenEnd.y+2)*squareSize, pixelSize, clr == COLOR_WHITE ? WHITE : BLACK);
+	GuiDrawIcon(PIECE_ROOK   + 256, (chosenEnd.x+1) * squareSize, (chosenEnd.y+3)*squareSize, pixelSize, clr == COLOR_WHITE ? WHITE : BLACK);
+	GuiDrawIcon(PIECE_BISHOP + 256, (chosenEnd.x+1) * squareSize, (chosenEnd.y+4)*squareSize, pixelSize, clr == COLOR_WHITE ? WHITE : BLACK);
+
+	Rectangle queen  = {(chosenEnd.x+1) * squareSize, (chosenEnd.y+1) * squareSize, squareSize, squareSize};
+	Rectangle knight = {(chosenEnd.x+1) * squareSize, (chosenEnd.y+2) * squareSize, squareSize, squareSize};
+	Rectangle rook   = {(chosenEnd.x+1) * squareSize, (chosenEnd.y+3) * squareSize, squareSize, squareSize};
+	Rectangle bishop = {(chosenEnd.x+1) * squareSize, (chosenEnd.y+4) * squareSize, squareSize, squareSize};
+
+	// The destination click that opens this menu must not also choose an option.
+	if(!promotionOpenedThisFrame && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+		Vector2 mousePos = GetMousePosition();
+		if(CheckCollisionPointRec(mousePos, queen)) {
+			chosenType = PIECE_QUEEN;
+			isPromoting = false;
+			printf("chose queen po\n");
+		}else if(CheckCollisionPointRec(mousePos, knight)) {
+			chosenType = PIECE_KNIGHT;
+			isPromoting = false;
+			printf("chose knight po\n");
+		}else if(CheckCollisionPointRec(mousePos, rook)) {
+			chosenType = PIECE_ROOK;
+			isPromoting = false;
+			printf("chose rook po\n");
+		}else if(CheckCollisionPointRec(mousePos, bishop)) {
+			chosenType = PIECE_BISHOP;
+			isPromoting = false;
+			printf("chose bishop po\n");
+		}
 	}
+
 	return;
 }
 
@@ -357,6 +411,20 @@ void updateBoard(GameState* gameState) {
         return;
     }
 
+	if(isPromoting && chosenType == PIECE_NONE)
+		return;
+
+	if(isPromoting && chosenType != PIECE_NONE) {
+		chosenEnd = (PiecePosition){x, y};
+		fromClientPacket packet;
+		packet.packetType = PACKET_SEND_MOVE;
+		packet.chosenStart = chosenStart;
+		packet.chosenEnd = chosenEnd;
+		packet.chosenType = chosenType;
+		queuePacket(packet);
+		return;
+	}
+
 	if (chosenStart.x == -1 && chosenStart.y == -1) {
 		chosenStart = (PiecePosition){x, y};
 		chosenEnd = (PiecePosition){-1, -1};
@@ -373,6 +441,14 @@ void updateBoard(GameState* gameState) {
 		//	   check if chosen piece is PAWN and chosenEnd is promotion for such
 		//	   pawn, then we should alert the client to have the user choose their
 		//	   piece
+		if (getPieceAt(gameState->currentChessBoard, chosenStart).type == PIECE_PAWN) {
+			enum MoveResult result = evaluateMove(&gameState->currentChessBoard, chosenStart, chosenEnd);
+			if(result & MOVE_PROMOTION) {
+				isPromoting = true;
+				promotionOpenedThisFrame = true;
+				return;
+			}
+		}
 
 		// queue sending packet
 		fromClientPacket packet;
