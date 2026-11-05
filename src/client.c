@@ -336,47 +336,47 @@ void render_stalemate_screen() {
 	return;
 }
 
+static void submit_promotion(enum PIECE_TYPE pieceType) {
+	fromClientPacket packet = {};
+	packet.packetType = PACKET_SEND_MOVE;
+	packet.chosenStart = chosenStart;
+	packet.chosenEnd = chosenEnd;
+	packet.chosenType = pieceType;
+	queuePacket(packet);
+
+	isPromoting = false;
+	promotionOpenedThisFrame = false;
+	chosenStart = (PiecePosition){-1, -1};
+	chosenEnd = (PiecePosition){-1, -1};
+	chosenType = PIECE_NONE;
+}
+
 void get_promotion_piece(PiecePosition position, enum PIECE_COLOR clr) {
 	DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), GetColor(0xFFFFFF55));
 
-	PiecePosition rawPos = toBoardPosition(chosenEnd.x, chosenEnd.y, clr);
+	PiecePosition screenPos = toBoardPosition(position.x, position.y, clr);
 	float squareSize = GetScreenHeight()/10.0f;
 	int pixelSize = squareSize/15;
-	
-	DrawRectangle((chosenEnd.x+1) * squareSize, (chosenEnd.y+1) * squareSize, squareSize, squareSize, RED);
-	DrawRectangle((chosenEnd.x+1) * squareSize, (chosenEnd.y+2) * squareSize, squareSize, squareSize, RED);
-	DrawRectangle((chosenEnd.x+1) * squareSize, (chosenEnd.y+3) * squareSize, squareSize, squareSize, RED);
-	DrawRectangle((chosenEnd.x+1) * squareSize, (chosenEnd.y+4) * squareSize, squareSize, squareSize, RED);
-
-	GuiDrawIcon(PIECE_QUEEN  + 256, (chosenEnd.x+1) * squareSize, (chosenEnd.y+1)*squareSize, pixelSize, clr == COLOR_WHITE ? WHITE : BLACK);
-	GuiDrawIcon(PIECE_KNIGHT + 256, (chosenEnd.x+1) * squareSize, (chosenEnd.y+2)*squareSize, pixelSize, clr == COLOR_WHITE ? WHITE : BLACK);
-	GuiDrawIcon(PIECE_ROOK   + 256, (chosenEnd.x+1) * squareSize, (chosenEnd.y+3)*squareSize, pixelSize, clr == COLOR_WHITE ? WHITE : BLACK);
-	GuiDrawIcon(PIECE_BISHOP + 256, (chosenEnd.x+1) * squareSize, (chosenEnd.y+4)*squareSize, pixelSize, clr == COLOR_WHITE ? WHITE : BLACK);
-
-	Rectangle queen  = {(chosenEnd.x+1) * squareSize, (chosenEnd.y+1) * squareSize, squareSize, squareSize};
-	Rectangle knight = {(chosenEnd.x+1) * squareSize, (chosenEnd.y+2) * squareSize, squareSize, squareSize};
-	Rectangle rook   = {(chosenEnd.x+1) * squareSize, (chosenEnd.y+3) * squareSize, squareSize, squareSize};
-	Rectangle bishop = {(chosenEnd.x+1) * squareSize, (chosenEnd.y+4) * squareSize, squareSize, squareSize};
+	int direction = screenPos.y == 7 ? -1 : 1;
+	enum PIECE_TYPE options[] = { PIECE_QUEEN, PIECE_KNIGHT, PIECE_ROOK, PIECE_BISHOP };
+	Rectangle optionRects[4];
+	for (int i = 0; i < 4; ++i) {
+		float x = (screenPos.x + 1) * squareSize;
+		float y = (screenPos.y + direction * i + 1) * squareSize;
+		optionRects[i] = (Rectangle){ x, y, squareSize, squareSize };
+		DrawRectangleRec(optionRects[i], RED);
+		GuiDrawIcon(options[i] + 256, (int)x, (int)y, pixelSize, clr == COLOR_WHITE ? WHITE : BLACK);
+	}
 
 	// The destination click that opens this menu must not also choose an option.
 	if(!promotionOpenedThisFrame && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
 		Vector2 mousePos = GetMousePosition();
-		if(CheckCollisionPointRec(mousePos, queen)) {
-			chosenType = PIECE_QUEEN;
-			isPromoting = false;
-			printf("chose queen po\n");
-		}else if(CheckCollisionPointRec(mousePos, knight)) {
-			chosenType = PIECE_KNIGHT;
-			isPromoting = false;
-			printf("chose knight po\n");
-		}else if(CheckCollisionPointRec(mousePos, rook)) {
-			chosenType = PIECE_ROOK;
-			isPromoting = false;
-			printf("chose rook po\n");
-		}else if(CheckCollisionPointRec(mousePos, bishop)) {
-			chosenType = PIECE_BISHOP;
-			isPromoting = false;
-			printf("chose bishop po\n");
+		for (int i = 0; i < 4; ++i) {
+			if (CheckCollisionPointRec(mousePos, optionRects[i])) {
+				chosenType = options[i];
+				submit_promotion(chosenType);
+				break;
+			}
 		}
 	}
 
@@ -411,19 +411,8 @@ void updateBoard(GameState* gameState) {
         return;
     }
 
-	if(isPromoting && chosenType == PIECE_NONE)
+	if(isPromoting)
 		return;
-
-	if(isPromoting && chosenType != PIECE_NONE) {
-		chosenEnd = (PiecePosition){x, y};
-		fromClientPacket packet;
-		packet.packetType = PACKET_SEND_MOVE;
-		packet.chosenStart = chosenStart;
-		packet.chosenEnd = chosenEnd;
-		packet.chosenType = chosenType;
-		queuePacket(packet);
-		return;
-	}
 
 	if (chosenStart.x == -1 && chosenStart.y == -1) {
 		chosenStart = (PiecePosition){x, y};
