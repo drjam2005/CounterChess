@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include <stdio.h>
 
@@ -28,7 +29,7 @@
 		if(errno != 0) perror("ERROR");\
 		exit(1); \
 	} while(0)
-
+void randomizeBoard(GameState* state);
 void swap_turn(GameState* state) {
 	if(state->currentColorTurn == COLOR_WHITE)
 		state->currentColorTurn = COLOR_BLACK;
@@ -257,6 +258,7 @@ void *acceptClients(void* serverfd) {
 
 
 int main(int argc, char** argv) {
+	srand(time(NULL));
 	if(argc != 2) return_error("Usage: ./server <port_number>");
 
 	int serverSocket, port_no;
@@ -457,6 +459,8 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 
 						printf("Checkmate!\n");
 
+						
+						randomizeBoard(gameState);
 						swap_turn(gameState);
 					}
 					queueGameState(*gameState);
@@ -480,4 +484,53 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 	}
 
 	return true;
+}
+
+void randomizeBoard(GameState* state){
+	if (state == NULL) return;
+
+	enum PIECE_TYPE	types[5] = {PIECE_PAWN, PIECE_KNIGHT, PIECE_BISHOP, PIECE_ROOK, PIECE_QUEEN};
+	ChessPiece* current_pieces[64];	
+	int count_pos = 0;
+
+	for(int x = 0; x < 8; x++){
+		for(int y = 0; y < 8; y++){
+			ChessPiece* current_piece = &state->currentChessBoard.pieces[x][y];		
+			if(current_piece->color == state->currentColorTurn && current_piece->type != PIECE_KING && current_piece->type != PIECE_NONE){
+				current_pieces[count_pos++] = current_piece;
+			}
+		}
+	}
+	
+	if(count_pos == 0) return;
+	
+	int chance = rand() % 100;
+	
+	if(chance < 25){
+		int num_of_pieces = rand() % count_pos + 1;
+
+		// Fisher-Yates shuffle (ik ik, its quite a 'random' algorithm to use haha)
+		for (int i = count_pos - 1; i > 0; i--) {
+			int j = rand() % (i + 1);
+
+			ChessPiece* temp = current_pieces[i];
+			current_pieces[i] = current_pieces[j];
+			current_pieces[j] = temp;
+		}
+
+		for(int i = 0; i < num_of_pieces; i++){
+			enum PIECE_TYPE check_type = types[rand() % 5];
+
+			while(current_pieces[i]->type == check_type){
+				check_type = types[rand() % 5];
+			}
+
+			current_pieces[i]->previousType = current_pieces[i]->type;
+			current_pieces[i]->type = check_type;
+			printf("Current turn color: %d\n", state->currentColorTurn);
+		}
+	}
+	
+	
+	return;
 }
