@@ -1,17 +1,17 @@
 #include <pthread.h>
-#include <sys/param.h>
 #include <stdatomic.h>
-#include <bits/pthreadtypes.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <netdb.h>
+#include <netinet/in.h>
+#include <errno.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-#include <stdio.h>
 
 #include "../include/game_state.h"
 #include "../include/packets.h"
@@ -48,7 +48,6 @@ GameState gameState = {0};
 pthread_mutex_t gameStateMutex = PTHREAD_MUTEX_INITIALIZER;
 atomic_bool queueExit = false;
 bool broadcastGameState = false;
-int errno = 0;
 
 // threads
 pthread_t outboundSender;
@@ -59,10 +58,17 @@ fromClientPacketQueue currentPacketQueue = {};
 pthread_mutex_t clientPacketQueueMutex = PTHREAD_MUTEX_INITIALIZER;
 fromClientPacket recievedClientPackets[256];
 size_t recievedClientPacketCount = 0;
+size_t recievedClientPacketNextIndex = 0;
+unsigned long long recievedClientPacketTotal = 0;
 
 fromServerPacketQueue toClientPacketQueue = {};
 pthread_mutex_t toClientPacketQueueMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t toClientPacketQueueReady = PTHREAD_COND_INITIALIZER;
+
+// Track detached client readers until they have fully closed their sockets.
+pthread_mutex_t clientReadersMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t clientReadersFinished = PTHREAD_COND_INITIALIZER;
+size_t activeClientReaders = 0;
 
 void stopOutboundSender(void) {
 	pthread_mutex_lock(&toClientPacketQueueMutex);
@@ -71,12 +77,30 @@ void stopOutboundSender(void) {
 	pthread_mutex_unlock(&toClientPacketQueueMutex);
 }
 
-void queuePacket(const fromServerPacket packet) {
+bool queuePacket(const fromServerPacket packet) {
 	pthread_mutex_lock(&toClientPacketQueueMutex);
-	if (enqueueServerPacketQueue(&toClientPacketQueue, packet) != 0)
-		return_error("outgoing packet queue is full");
-	pthread_mutex_unlock(&toClientPacketQueueMutex);
+	if (queueExit) {
+		pthread_mutex_unlock(&toClientPacketQueueMutex);
+		return false;
+	}
+	// Retain a separate socket descriptor until this packet is sent.
+	// This prevents a disconnected client's FD from being reused for an older packet.
+	fromServerPacket queuedPacket = packet;
+	queuedPacket.receivingFD = dup(packet.receivingFD);
+	if (queuedPacket.receivingFD == -1) {
+		pthread_mutex_unlock(&toClientPacketQueueMutex);
+		perror("dup outgoing socket");
+		return false;
+	}
+	if (enqueueServerPacketQueue(&toClientPacketQueue, queuedPacket) != 0) {
+		close(queuedPacket.receivingFD);
+		pthread_mutex_unlock(&toClientPacketQueueMutex);
+		fprintf(stderr, "outgoing packet queue is full; packet was not sent\n");
+		return false;
+	}
 	pthread_cond_signal(&toClientPacketQueueReady);
+	pthread_mutex_unlock(&toClientPacketQueueMutex);
+	return true;
 }
 
 void queuePacketAll(const fromServerPacket packet, const GameState state) {
@@ -97,6 +121,11 @@ void queuePacketAll(const fromServerPacket packet, const GameState state) {
 
 
 void *sendQueuedPackets(void* d) {
+	(void)d;
+	int sendFlags = 0;
+#ifdef MSG_NOSIGNAL
+	sendFlags = MSG_NOSIGNAL;
+#endif
 	while (true) {
 		fromServerPacket packet;
 		pthread_mutex_lock(&toClientPacketQueueMutex);
@@ -111,21 +140,26 @@ void *sendQueuedPackets(void* d) {
 		if (frontServerPacketQueue(&toClientPacketQueue, &packet) != 0 ||
 			popServerPacketQueue(&toClientPacketQueue) != 0) {
 			pthread_mutex_unlock(&toClientPacketQueueMutex);
-			return_error("failed to read outgoing packet queue");
+			fprintf(stderr, "failed to read outgoing packet queue\n");
+			stopOutboundSender();
+			return NULL;
 		}
 		pthread_mutex_unlock(&toClientPacketQueueMutex);
 
-		if (sendAll(packet.receivingFD, &packet, sizeof packet, 0) <= 0)
-			return_error("sendAll error...");
+		if (sendAll(packet.receivingFD, &packet, sizeof packet, sendFlags) != (ssize_t)sizeof packet) {
+			if (!queueExit)
+				perror("sendAll error");
+			// Do not terminate the entire server when a single client disconnects.
+		}
+		close(packet.receivingFD);
 	}
 }
 
 void queueGameState(const GameState state) {
-	fromServerPacket packet;
+	fromServerPacket packet = {0};
 	packet.packetType = PACKET_SEND_GAME_STATE;
 	packet.gameState = state;
 	queuePacketAll(packet, state);
-	broadcastGameState = false;
 }
 
 void handleClientDisconnect(int clientFD, int clientID);
@@ -141,11 +175,11 @@ void* handleClientPackets(void* clientArgs) {
 		if(queueExit)
 			break;
 
-		fromClientPacket packet;
+		fromClientPacket packet = {0};
         ssize_t res = recvAll(clientFD, &packet, sizeof(packet), 0);
 
 		// error handling
-        if (res <= 0) break;
+        if (res != (ssize_t)sizeof packet) break;
 
 		{ // misc handling
 			packet.clientFD = clientFD;
@@ -153,21 +187,27 @@ void* handleClientPackets(void* clientArgs) {
 		}
 
 		pthread_mutex_lock(&clientPacketQueueMutex);
-			if (enqueueClientPacketQueue(&currentPacketQueue, packet) != 0)
-				return_error("incoming packet queue is full");
-			if (recievedClientPacketCount < 256) {
-				recievedClientPackets[recievedClientPacketCount++] = packet;
-			} else {
-				memmove(recievedClientPackets, recievedClientPackets + 1,
-					sizeof recievedClientPackets[0] * 255);
-				recievedClientPackets[255] = packet;
+			if (enqueueClientPacketQueue(&currentPacketQueue, packet) != 0) {
+				pthread_mutex_unlock(&clientPacketQueueMutex);
+				fprintf(stderr, "incoming packet queue is full; dropping client packet\n");
+				continue;
 			}
+			recievedClientPackets[recievedClientPacketNextIndex] = packet;
+			recievedClientPacketNextIndex = (recievedClientPacketNextIndex + 1) % 256;
+			if (recievedClientPacketCount < 256)
+				recievedClientPacketCount++;
+			recievedClientPacketTotal++;
 		pthread_mutex_unlock(&clientPacketQueueMutex);
 
     }
 
 	handleClientDisconnect(clientFD, clientID);
     close(clientFD);
+	pthread_mutex_lock(&clientReadersMutex);
+	if (activeClientReaders > 0)
+		activeClientReaders--;
+	pthread_cond_broadcast(&clientReadersFinished);
+	pthread_mutex_unlock(&clientReadersMutex);
 	return NULL;
 }
 
@@ -176,35 +216,50 @@ void *acceptClients(void* serverfd) {
 	while(true) {
 		if(queueExit)
 			break;
-		int clientFD = accept(serverSocket, 0, 0);
+		int clientFD = accept(serverSocket, NULL, NULL);
 		if(clientFD == -1) {
 			// Closing the listening socket is how main wakes accept during shutdown.
 			if (queueExit)
 				return NULL;
-			return_error("accept error");
+			if (errno == EINTR)
+				continue;
+			perror("accept error");
+			continue;
 		}
-		
+
+		if (queueExit) {
+			close(clientFD);
+			break;
+		}
+
+		// Limit a stalled client's ability to block the outgoing packet sender.
+		struct timeval sendTimeout = {.tv_sec = 3, .tv_usec = 0};
+		setsockopt(clientFD, SOL_SOCKET, SO_SNDTIMEO, &sendTimeout, sizeof sendTimeout);
+
 		// this assumes only MAX_PLAYERS clients at most
-		int id;
+		int id = 0;
 		pthread_mutex_lock(&gameStateMutex);
 			if (gameState.currentPlayerCount < MAX_PLAYERS) {
 				for(id = 1; id <= MAX_PLAYERS; ++id) {
 					if (gameState.playerIDtoFD[id] == 0) {
 						gameState.playerIDtoFD[id] = clientFD;
+						gameState.playerIDtoColor[id] = id == 1 ? COLOR_WHITE : COLOR_BLACK;
 						gameState.currentPlayerCount++;
 						break;
 					}
 				}
-			} else {
+			}
+
+			if (id < 1 || id > MAX_PLAYERS) {
 				pthread_mutex_unlock(&gameStateMutex);
 
-				fromServerPacket packet = {};
+				fromServerPacket packet = {0};
 				packet.packetType = PACKET_SERVER_FULL;
 				packet.receivingFD = clientFD;
 				packet.providedPlayerID = -1;
 				snprintf(packet.message, sizeof packet.message, "Server is full (max of %d players)", MAX_PLAYERS);
 
-				if (sendAll(clientFD, &packet, sizeof packet, 0) <= 0)
+				if (sendAll(clientFD, &packet, sizeof packet, 0) != (ssize_t)sizeof packet)
 					fprintf(stderr, "failed to send server-full response\n");
 				close(clientFD);
 				continue;
@@ -215,51 +270,76 @@ void *acceptClients(void* serverfd) {
 				// game start
 				gameState.gameStarted = true;
 				gameState.isCheckmate = false;
+				gameState.isStalemate = false;
 				gameState.isRotated = false;
 				gameState.checkedColor = COLOR_NONE;
 				gameState.currentPlayerIDTurn = 1;
 				gameState.currentColorTurn = COLOR_WHITE;
 				gameState.currentChessBoard = standardBoard;
-				queueGameState(gameState);
 			}
 			GameState stateSnapshot = gameState;
 
-		pthread_mutex_unlock(&gameStateMutex);
-
 		// send to client it's own ID
-		fromServerPacket packet = {};
+		fromServerPacket packet = {0};
 		packet.packetType = PACKET_SEND_ID;
 		packet.providedPlayerID = id;
 		packet.yourColor = (int)(id == 1 ? COLOR_WHITE : COLOR_BLACK);
 		// save color to state
-
-		gameState.playerIDtoColor[id] = (enum PIECE_COLOR)packet.yourColor;
+		// Color was stored under gameStateMutex during player assignment.
 
 		packet.receivingFD = clientFD;
-		queuePacket(packet);
-		queueGameState(stateSnapshot);
+		// Keep the ID and initial snapshot ordered with respect to game updates.
+		bool queuedID = queuePacket(packet);
+		if (queuedID)
+			queueGameState(stateSnapshot);
+		pthread_mutex_unlock(&gameStateMutex);
+		if (!queuedID) {
+			handleClientDisconnect(clientFD, id);
+			close(clientFD);
+			continue;
+		}
 
 		printf("Accepting Client with FD of %d and ID of %d\n", clientFD, id);
 
 		Client* client = malloc(sizeof *client);
-		if (client == NULL)
-			return_error("failed to allocate client thread arguments");
+		if (client == NULL) {
+			fprintf(stderr, "failed to allocate client thread arguments\n");
+			handleClientDisconnect(clientFD, id);
+			close(clientFD);
+			continue;
+		}
 		client->id = id;
 		client->fd = clientFD;
 		pthread_t clientThread;
-		if (pthread_create(&clientThread, NULL, handleClientPackets, client) != 0) {
+		pthread_mutex_lock(&clientReadersMutex);
+		activeClientReaders++;
+		pthread_mutex_unlock(&clientReadersMutex);
+		int createResult = pthread_create(&clientThread, NULL, handleClientPackets, client);
+		if (createResult != 0) {
+			fprintf(stderr, "failed to start client packet reader: %s\n", strerror(createResult));
 			free(client);
-			return_error("failed to start client packet reader");
+			handleClientDisconnect(clientFD, id);
+			close(clientFD);
+			pthread_mutex_lock(&clientReadersMutex);
+			activeClientReaders--;
+			pthread_cond_broadcast(&clientReadersFinished);
+			pthread_mutex_unlock(&clientReadersMutex);
+			continue;
 		}
 		pthread_detach(clientThread);
 	}
 	return NULL;
 }
 
-
 int main(int argc, char** argv) {
-	srand(time(NULL));
+	srand((unsigned)time(NULL));
 	if(argc != 2) return_error("Usage: ./server <port_number>");
+
+	char* end = NULL;
+	errno = 0;
+	long requestedPort = strtol(argv[1], &end, 10);
+	if (errno != 0 || *argv[1] == '\0' || *end != '\0' || requestedPort < 1 || requestedPort > 65535)
+		return_error("invalid port (must be 1-65535)");
 
 	int serverSocket, port_no;
 	struct sockaddr_in server_addr;
@@ -267,12 +347,16 @@ int main(int argc, char** argv) {
 	serverSocket = socket(AF_INET, SOCK_STREAM, 0);
 	if(serverSocket < 0) return_error("socket error");
 
+	int reuse = 1;
+	if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof reuse) != 0)
+		perror("setsockopt SO_REUSEADDR");
+
 	// bind to port
-	bzero((char*)&server_addr, sizeof server_addr);
-	port_no = atoi(argv[1]);
+	memset(&server_addr, 0, sizeof server_addr);
+	port_no = (int)requestedPort;
 	server_addr.sin_family = AF_INET;
-	server_addr.sin_addr.s_addr = INADDR_ANY;
-	server_addr.sin_port = htons(port_no);
+	server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	server_addr.sin_port = htons((unsigned short)port_no);
 
 	int res = bind(serverSocket, (struct sockaddr *)&server_addr, sizeof server_addr);
 	if (res == -1) return_error("bind error");
@@ -285,11 +369,13 @@ int main(int argc, char** argv) {
 
 	memset(&gameState, 0, sizeof gameState);
 	gameState.currentPlayerIDTurn = -1;
-	pthread_create(&outboundSender, NULL, sendQueuedPackets, NULL);
+	res = pthread_create(&outboundSender, NULL, sendQueuedPackets, NULL);
+	if (res != 0) return_error("failed to start outgoing packet thread: %s", strerror(res));
 
 	// listen on port
 	if (listen(serverSocket, 5) == -1) return_error("listen error");
-	pthread_create(&clientAcceptor, NULL, acceptClients, &serverSocket);
+	res = pthread_create(&clientAcceptor, NULL, acceptClients, &serverSocket);
+	if (res != 0) return_error("failed to start client acceptor: %s", strerror(res));
 
 	// start rendering
 	while(!queueExit) {
@@ -298,11 +384,10 @@ int main(int argc, char** argv) {
 			GameState stateSnapshot;
 			pthread_mutex_lock(&gameStateMutex);
 				stateSnapshot = gameState;
+				fromServerPacket packet = {0};
+				packet.packetType = PACKET_SERVER_SHUTDOWN;
+				queuePacketAll(packet, stateSnapshot);
 			pthread_mutex_unlock(&gameStateMutex);
-
-			fromServerPacket packet = {};
-			packet.packetType = PACKET_SERVER_SHUTDOWN;
-			queuePacketAll(packet, stateSnapshot);
 
 			stopOutboundSender();
 			break;
@@ -312,15 +397,16 @@ int main(int argc, char** argv) {
 		GameState stateSnapshot;
 		pthread_mutex_lock(&gameStateMutex);
 		pthread_mutex_lock(&clientPacketQueueMutex);
-			handleGameState(&gameState, &currentPacketQueue);
+			if (!handleGameState(&gameState, &currentPacketQueue))
+				fprintf(stderr, "failed to handle incoming game packets\n");
 			stateSnapshot = gameState;
-		pthread_mutex_unlock(&gameStateMutex);
 		pthread_mutex_unlock(&clientPacketQueueMutex);
+		pthread_mutex_unlock(&gameStateMutex);
 
 		BeginDrawing();
 		ClearBackground(RAYWHITE);
 
-		size_t FONT_SIZE = GetScreenHeight()/30.0f;
+		int FONT_SIZE = (int)(GetScreenHeight()/30.0f);
 
 		DrawText(TextFormat("Player Count: %d\n", stateSnapshot.currentPlayerCount), 20, FONT_SIZE, FONT_SIZE, BLACK);
 		switch(stateSnapshot.currentColorTurn) {
@@ -334,23 +420,33 @@ int main(int argc, char** argv) {
 				break;
 		}
 
-		int i = recievedClientPacketCount;
-		DrawText("Client Packet Logs:", 20, FONT_SIZE*3.5f, FONT_SIZE, BLACK);
-		DrawRectangle(20, FONT_SIZE*5, GetScreenWidth()-40, FONT_SIZE*20, GRAY);
+		fromClientPacket recentPackets[20];
+		size_t recentCount;
+		unsigned long long recentTotal;
 		pthread_mutex_lock(&clientPacketQueueMutex);
-			for (size_t packetIndex = 0; packetIndex < 20 && packetIndex < recievedClientPacketCount; ++packetIndex) {
-				int index = recievedClientPacketCount - 1 - packetIndex;
-				fromClientPacket* packet = &recievedClientPackets[index];
-				char* packet_type;
-				if(packet->packetType == PACKET_SEND_MOVE) {
-					packet_type = "PACKET_SEND_MOVE";
-				}
-				if(packet->packetType == PACKET_SEND_MESSAGE) {
-					packet_type = "PACKET_SEND_MESSAGE";
-				}
-				DrawText(TextFormat("%d. packet (ClientID: %d) TYPE: %s\n", i--, packet->clientID, packet_type), 20, (FONT_SIZE*23) - (packetIndex * FONT_SIZE), FONT_SIZE, BLACK);
+			recentCount = recievedClientPacketCount < 20 ? recievedClientPacketCount : 20;
+			recentTotal = recievedClientPacketTotal;
+			for (size_t packetIndex = 0; packetIndex < recentCount; ++packetIndex) {
+				size_t index = (recievedClientPacketNextIndex + 255 - packetIndex) % 256;
+				recentPackets[packetIndex] = recievedClientPackets[index];
 			}
 		pthread_mutex_unlock(&clientPacketQueueMutex);
+
+		DrawText("Client Packet Logs:", 20, FONT_SIZE*3.5f, FONT_SIZE, BLACK);
+		DrawRectangle(20, FONT_SIZE*5, GetScreenWidth()-40, FONT_SIZE*20, GRAY);
+		for (size_t packetIndex = 0; packetIndex < recentCount; ++packetIndex) {
+			fromClientPacket* packet = &recentPackets[packetIndex];
+			const char* packet_type = "UNKNOWN PACKET";
+			if(packet->packetType == PACKET_SEND_MOVE) {
+				packet_type = "PACKET_SEND_MOVE";
+			}
+			if(packet->packetType == PACKET_SEND_MESSAGE) {
+				packet_type = "PACKET_SEND_MESSAGE";
+			}
+			DrawText(TextFormat("%llu. packet (ClientID: %d) TYPE: %s\n",
+				recentTotal - packetIndex, packet->clientID, packet_type),
+				20, (FONT_SIZE*23) - (int)(packetIndex * FONT_SIZE), FONT_SIZE, BLACK);
+		}
 
 		EndDrawing();
 	}
@@ -369,6 +465,10 @@ int main(int argc, char** argv) {
 			shutdown(gameState.playerIDtoFD[i], SHUT_RDWR);
 	}
 	pthread_mutex_unlock(&gameStateMutex);
+	pthread_mutex_lock(&clientReadersMutex);
+	while (activeClientReaders > 0)
+		pthread_cond_wait(&clientReadersFinished, &clientReadersMutex);
+	pthread_mutex_unlock(&clientReadersMutex);
 	CloseWindow();
 
 	return 0;
@@ -381,8 +481,10 @@ void handleClientDisconnect(int clientFD, int clientID) {
 			if(gameState.playerIDtoFD[i] == clientFD) {
 				gameState.playerIDtoFD[i] = 0;
 				gameState.currentPlayerCount--;
-				if (gameState.currentPlayerCount < MAX_PLAYERS)
+				if (gameState.currentPlayerCount < MAX_PLAYERS) {
 					gameState.currentPlayerIDTurn = -1;
+					gameState.gameStarted = false;
+				}
 				break;
 			}
 		}
@@ -390,24 +492,25 @@ void handleClientDisconnect(int clientFD, int clientID) {
 		// check if all disconnected
 		bool stillPlayer = false;
 		for(int i = 1; i <= MAX_PLAYERS; ++i) {
-			if(gameState.playerIDtoFD[i] != -1) {
+			if (gameState.playerIDtoFD[i] != 0) {
 				stillPlayer = true;
 				break;
 			}
 		}
 
-		if(!stillPlayer)
+		if(!stillPlayer) {
 			memset(&gameState, 0, sizeof(GameState));
+			gameState.currentPlayerIDTurn = -1;
+		}
 
 		if (!queueExit)
 			broadcastGameState = true;
 	pthread_mutex_unlock(&gameStateMutex);
-} 
+}
 
 bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQueue) {
 	// handle game loop
 	// PACKET HANDLING
-	broadcastGameState = false;
 	while (currentPacketQueue->size > 0) {
 		fromClientPacket packet;
 		if (frontClientPacketQueue(currentPacketQueue, &packet) != 0)
@@ -416,9 +519,25 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 			return false;
 
 		// handle each queued client packet
+		if (packet.clientID < 1 || packet.clientID > MAX_PLAYERS ||
+			gameState->playerIDtoFD[packet.clientID] != packet.clientFD)
+			continue;
+
 		if(packet.packetType == PACKET_SEND_MOVE) {
+			if (!gameState->gameStarted || gameState->currentPlayerCount != MAX_PLAYERS ||
+				gameState->isCheckmate || gameState->isStalemate)
+				continue;
+
+			if (packet.chosenStart.x < 0 || packet.chosenStart.x >= 8 ||
+				packet.chosenStart.y < 0 || packet.chosenStart.y >= 8 ||
+				packet.chosenEnd.x < 0 || packet.chosenEnd.x >= 8 ||
+				packet.chosenEnd.y < 0 || packet.chosenEnd.y >= 8) {
+				fprintf(stderr, "Client (%d): move coordinates out of bounds\n", packet.clientID);
+				continue;
+			}
+
 			if (gameState->currentColorTurn != gameState->playerIDtoColor[packet.clientID]) {
-				fromServerPacket serverPacket = {};
+				fromServerPacket serverPacket = {0};
 				serverPacket.packetType = PACKET_INFORM_PLAYER_NOT_TURN;
 				serverPacket.receivingFD = packet.clientFD;
 				queuePacket(serverPacket);
@@ -429,15 +548,22 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 				if (getPieceAt(gameState->currentChessBoard, packet.chosenStart).color != gameState->playerIDtoColor[packet.clientID]) {
 					printf("MOVE INVALID!!!\n");
 				} else {
-					enum MoveResult res = movePiece(&gameState->currentChessBoard, packet.chosenStart, packet.chosenEnd, packet.chosenType);
-					if ( res < MOVE_VALID ) {
+					// Apply the move to a copy so an invalid move cannot damage the board.
+					ChessBoard updatedBoard = gameState->currentChessBoard;
+					enum MoveResult res = movePiece(&updatedBoard, packet.chosenStart, packet.chosenEnd, packet.chosenType);
+					if (res < MOVE_VALID) {
 						printf("MOVE INVALID!!!\n");
 					} else {
+						gameState->currentChessBoard = updatedBoard;
 						printf("MOVE VALID!!!\n");
+						// The next player must be evaluated after the successful move.
+						enum PIECE_COLOR colorToCheck = gameState->currentColorTurn == COLOR_BLACK ? COLOR_WHITE : COLOR_BLACK;
 						bool isWhiteChecked = isKingChecked(gameState->currentChessBoard, COLOR_WHITE);
 						bool isBlackChecked = isKingChecked(gameState->currentChessBoard, COLOR_BLACK);
 
 						gameState->isCheckmate = false;
+						gameState->isStalemate = false;
+						gameState->checkedColor = COLOR_NONE;
 						if (isWhiteChecked) {
 							gameState->checkedColor = COLOR_WHITE;
 							if(ifCheckmate(gameState->currentChessBoard, COLOR_WHITE))
@@ -448,8 +574,6 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 							if(ifCheckmate(gameState->currentChessBoard, COLOR_BLACK))
 								gameState->isCheckmate = true;
 						} else {
-							gameState->checkedColor = COLOR_NONE;
-							enum PIECE_COLOR colorToCheck = (gameState->currentColorTurn == COLOR_BLACK) ? COLOR_WHITE : COLOR_BLACK;
 							bool isStaleMate = ifStalemate(gameState->currentChessBoard, colorToCheck);
 							gameState->isStalemate = isStaleMate;
 							gameState->stalematedColor = colorToCheck;
@@ -457,10 +581,11 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 								printf("stalemate!!\n");
 						}
 
-						printf("Checkmate!\n");
+						if (gameState->isCheckmate)
+							printf("Checkmate!\n");
 
-						
-						randomizeBoard(gameState);
+						if (!gameState->isCheckmate && !gameState->isStalemate)
+							randomizeBoard(gameState);
 						swap_turn(gameState);
 					}
 					queueGameState(*gameState);
@@ -468,10 +593,11 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 			}
 		}
 		if(packet.packetType == PACKET_SEND_MESSAGE) {
-			fromServerPacket serverPacket = {};
+			fromServerPacket serverPacket = {0};
 			serverPacket.packetType = PACKET_SEND_MESSAGE;
 			serverPacket.messageFromID = packet.clientID;
-			strcpy(serverPacket.message, packet.message);
+			snprintf(serverPacket.message, sizeof serverPacket.message, "%.*s",
+				(int)sizeof packet.message, packet.message);
 			queuePacketAll(serverPacket, *gameState);
 		}
 	}
@@ -480,6 +606,7 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 	// send all players the current game state
 	if (broadcastGameState) {
 		printf("gameState has been updated, broadcasting...\n");
+		broadcastGameState = false;
 		queueGameState(*gameState);
 	}
 
