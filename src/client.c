@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -7,6 +8,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <stdatomic.h>
+#include <errno.h>
 
 #include "../include/game_state.h"
 #include "../include/packets.h"
@@ -45,11 +47,10 @@ bool messageEditMode = true;
 bool isPromoting = false;
 bool promotionOpenedThisFrame = false;
 atomic_bool queueExit = false;
-int errno = 0;
 enum PIECE_TYPE chosenType = PIECE_NONE;
 
 // for inputting
-char ipBox[256] = "0.0.0.0";
+char ipBox[256] = "127.0.0.1";
 bool ipEditMode = true;
 char portBox[256] = "5050";
 bool portEditMode = true;
@@ -62,14 +63,15 @@ typedef struct RenderMessage {
 // std::vector<RenderMessage> gameMessages;
 RenderMessage gameMessages[256];
 int currentIndex = 0;
+int storedMessageCount = 0;
 
 pthread_t packetHandler;
 pthread_t packetSender;
 // queued packets
-fromServerPacketQueue currentServerPackets = {};
+fromServerPacketQueue currentServerPackets = {0};
 pthread_mutex_t currentServerPacketQueue = PTHREAD_MUTEX_INITIALIZER;
 
-fromClientPacketQueue toServerPacketsQueue = {};
+fromClientPacketQueue toServerPacketsQueue = {0};
 pthread_mutex_t toServerPacketsQueueMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t toServerPacketsQueueReady = PTHREAD_COND_INITIALIZER;
 
@@ -80,16 +82,28 @@ void stopPacketSender(void) {
 	pthread_mutex_unlock(&toServerPacketsQueueMutex);
 }
 
-void queuePacket(const fromClientPacket packet) {
+bool queuePacket(const fromClientPacket packet) {
 	pthread_mutex_lock(&toServerPacketsQueueMutex);
-	if (enqueueClientPacketQueue(&toServerPacketsQueue, packet) != 0)
-		return_error("outgoing packet queue is full");
-	pthread_mutex_unlock(&toServerPacketsQueueMutex);
+	if (queueExit) {
+		pthread_mutex_unlock(&toServerPacketsQueueMutex);
+		return false;
+	}
+	if (enqueueClientPacketQueue(&toServerPacketsQueue, packet) != 0) {
+		pthread_mutex_unlock(&toServerPacketsQueueMutex);
+		fprintf(stderr, "outgoing packet queue is full\n");
+		return false;
+	}
 	pthread_cond_signal(&toServerPacketsQueueReady);
+	pthread_mutex_unlock(&toServerPacketsQueueMutex);
+	return true;
 }
 
 void* sendQueuedPackets(void* sFD) {
 	int serverFD = *(int*)sFD;
+	int sendFlags = 0;
+#ifdef MSG_NOSIGNAL
+	sendFlags = MSG_NOSIGNAL;
+#endif
 	while(true) {
 		fromClientPacket packet;
 		{
@@ -101,13 +115,20 @@ void* sendQueuedPackets(void* sFD) {
 				return NULL;
 			}
 			if (frontClientPacketQueue(&toServerPacketsQueue, &packet) != 0 ||
-				popClientPacketQueue(&toServerPacketsQueue) != 0)
-				return_error("failed to read outgoing packet queue");
+				popClientPacketQueue(&toServerPacketsQueue) != 0) {
+				pthread_mutex_unlock(&toServerPacketsQueueMutex);
+				fprintf(stderr, "failed to read outgoing packet queue\n");
+				stopPacketSender();
+				return NULL;
+			}
 			pthread_mutex_unlock(&toServerPacketsQueueMutex);
 		}
 
-		if(sendAll(serverFD, &packet, sizeof packet, 0) <= 0)
-			return_error("sendAll error...");
+		if(sendAll(serverFD, &packet, sizeof packet, sendFlags) <= 0) {
+			if (!queueExit) perror("sendAll error");
+			stopPacketSender();
+			return NULL;
+		}
 	}
 }
 
@@ -118,10 +139,14 @@ void* handleServerPackets(void* sFD) {
 		ssize_t res = recvAll(serverFD, &serverPacket, sizeof serverPacket, 0);
 
 		// error handling
-		if(res <= 0) return NULL;
-		if(serverPacket.packetType == PACKET_SERVER_FULL) {
+		if(res != (ssize_t)sizeof serverPacket) {
+			if (res < 0 && !queueExit) perror("recvAll error");
 			stopPacketSender();
-			return_error("ERROR: %s", serverPacket.message);
+			return NULL;
+		}
+		if(serverPacket.packetType == PACKET_SERVER_FULL) {
+			fprintf(stderr, "ERROR: %.*s\n", (int)sizeof serverPacket.message, serverPacket.message);
+			stopPacketSender();
 			return NULL;
 		}
 		if(serverPacket.packetType == PACKET_SERVER_SHUTDOWN) {
@@ -135,8 +160,12 @@ void* handleServerPackets(void* sFD) {
 		{
 			//std::lock_guard<std::mutex> lock(currentServerPacketQueue);
 			pthread_mutex_lock(&currentServerPacketQueue);
-			if (enqueueServerPacketQueue(&currentServerPackets, serverPacket) == -1)
-				return_error("incoming packet queue is full");
+			if (enqueueServerPacketQueue(&currentServerPackets, serverPacket) == -1) {
+				pthread_mutex_unlock(&currentServerPacketQueue);
+				fprintf(stderr, "incoming packet queue is full\n");
+				stopPacketSender();
+				return NULL;
+			}
 			pthread_mutex_unlock(&currentServerPacketQueue);
 		}
 
@@ -150,14 +179,13 @@ void render_checkmate_screen(enum PIECE_COLOR clr);
 void render_stalemate_screen();
 void get_promotion_piece(PiecePosition position, enum PIECE_COLOR clr);
 
-int handleConnection(const char* port, const char* addr);
+int handleConnection(const char* port, const char* addr, int* stableSocketFD);
 
 int main(int argc, char** argv) {
-	int serverSocket;
+	int serverSocket = -1;
 	bool argumentsProvided = false;
 	if(argc == 3)  {
-		serverSocket = handleConnection(argv[2], argv[1]);
-		argumentsProvided = true;
+		argumentsProvided = handleConnection(argv[2], argv[1], &serverSocket) >= 0;
 	}
 
 
@@ -201,11 +229,8 @@ int main(int argc, char** argv) {
 				if (GuiButton((Rectangle){ 100, 260, 70, 40 }, "connect")) {
 					// queue message
 					if(strlen(portBox) && strlen(ipBox)) {
-						serverSocket = handleConnection(portBox, ipBox);
-						if (serverSocket == -1) {
-							portBox[0] = '\0';
-							ipBox[0] = '\0';
-							continue;
+						if (handleConnection(portBox, ipBox, &serverSocket) == -1) {
+							fprintf(stderr, "Connection failed; check the address and port.\n");
 						} else
 							argumentsProvided = true;
 					}
@@ -218,16 +243,18 @@ int main(int argc, char** argv) {
 
 		// game loop
 		promotionOpenedThisFrame = false;
-		if(IsKeyPressed(KEY_ESCAPE) || WindowShouldClose()) {
-			stopPacketSender();
-		}
 
+		bool packetsHandled;
 		{
 			pthread_mutex_lock(&currentServerPacketQueue);
 			pthread_mutex_lock(&gameStateMutex);
-				handleGameState(&gameState, &currentServerPackets);
-			pthread_mutex_unlock(&currentServerPacketQueue);
+				packetsHandled = handleGameState(&gameState, &currentServerPackets);
 			pthread_mutex_unlock(&gameStateMutex);
+			pthread_mutex_unlock(&currentServerPacketQueue);
+		}
+		if (!packetsHandled) {
+			fprintf(stderr, "failed to process incoming packet queue\n");
+			stopPacketSender();
 		}
 
 		updateBoard(&gameState);
@@ -259,7 +286,6 @@ int main(int argc, char** argv) {
 		}
 		if(gameState.isStalemate) {
 			render_stalemate_screen();
-			printf("stalemate!!\n");
 		}
 
 		if(isPromoting) {
@@ -279,23 +305,22 @@ int main(int argc, char** argv) {
         if (GuiButton((Rectangle){ 560, 550, 70, 40 }, "send")) {
 			// queue message
 			if(strlen(messageBox)) {
-				fromClientPacket packet = {};
+				fromClientPacket packet = {0};
 				packet.packetType = PACKET_SEND_MESSAGE;
-				strcpy(packet.message, messageBox);
+				snprintf(packet.message, sizeof packet.message, "%s", messageBox);
 
-				queuePacket(packet);
+				if (queuePacket(packet))
+					messageBox[0] = '\0';
 			}
-
-			messageBox[0] = '\0';
         }
 
 		// render all messages
 		float yStart = 460;
 		float xStart = 550;
-		int messageCount = currentIndex;
+		int messageCount = storedMessageCount;
 
 		for (int i = 0; i < 10 && i < messageCount; ++i) {
-			int index = messageCount - 1 - i;
+			int index = (currentIndex + 255 - i) % 256;
 
 			int messageWidth = MeasureText(gameMessages[index].message, 20);
 
@@ -310,9 +335,13 @@ int main(int argc, char** argv) {
 		EndDrawing();
 	}
 	stopPacketSender();
-	shutdown(serverSocket, SHUT_RDWR);
+	if (serverSocket >= 0) {
+		shutdown(serverSocket, SHUT_RDWR);
+		pthread_join(packetHandler, NULL);
+		pthread_join(packetSender, NULL);
+		close(serverSocket);
+	}
 	CloseWindow();
-	close(serverSocket);
 
 	return 0;
 }
@@ -337,12 +366,13 @@ void render_stalemate_screen() {
 }
 
 static void submit_promotion(enum PIECE_TYPE pieceType) {
-	fromClientPacket packet = {};
+	fromClientPacket packet = {0};
 	packet.packetType = PACKET_SEND_MOVE;
 	packet.chosenStart = chosenStart;
 	packet.chosenEnd = chosenEnd;
 	packet.chosenType = pieceType;
-	queuePacket(packet);
+	if (!queuePacket(packet))
+		return;
 
 	isPromoting = false;
 	promotionOpenedThisFrame = false;
@@ -390,7 +420,7 @@ void updateBoard(GameState* gameState) {
     if (!gameState->gameStarted)
         return;
 
-	if (gameState->isCheckmate)
+	if (gameState->isCheckmate || gameState->isStalemate)
 		return;
 
 	if (!IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
@@ -440,12 +470,13 @@ void updateBoard(GameState* gameState) {
 		}
 
 		// queue sending packet
-		fromClientPacket packet;
+		fromClientPacket packet = {0};
 		packet.packetType = PACKET_SEND_MOVE;
 		packet.chosenStart = chosenStart;
 		packet.chosenEnd = chosenEnd;
 		packet.chosenType = PIECE_NONE;
-		queuePacket(packet);
+		if (!queuePacket(packet))
+			return;
 
 		// temporary update own board for smooth client-side rendering
 //		ChessPiece tempPiece = gameState->currentChessBoard.pieces[chosenStart.y][chosenStart.x];
@@ -482,14 +513,13 @@ bool handleGameState(GameState* gameState, fromServerPacketQueue* currentServerP
 		}
 		if(serverPacket.packetType == PACKET_SEND_MESSAGE) {
 			RenderMessage msg;
-			strcpy(msg.message, serverPacket.message);
+			snprintf(msg.message, sizeof msg.message, "%.*s",
+				(int)sizeof serverPacket.message, serverPacket.message);
 			msg.id = serverPacket.messageFromID;
-			if (currentIndex < 256) {
-				gameMessages[currentIndex++] = msg;
-			} else {
-				memmove(gameMessages, gameMessages + 1, sizeof gameMessages[0] * 255);
-				gameMessages[255] = msg;
-			}
+			gameMessages[currentIndex] = msg;
+			currentIndex = (currentIndex + 1) % 256;
+			if (storedMessageCount < 256)
+				storedMessageCount++;
 		}
 
 		// handle server responses
@@ -502,31 +532,65 @@ bool handleGameState(GameState* gameState, fromServerPacketQueue* currentServerP
 	return true;
 }
 
-int handleConnection(const char* port, const char* addr) {
-	int serverSocket, port_no;
-	struct sockaddr_in server_addr;
-	struct hostent *server;
+int handleConnection(const char* port, const char* addr, int* stableSocketFD) {
+	int serverSocket = -1;
+	struct addrinfo hints = {0};
+	struct addrinfo *serverAddresses = NULL;
 
-	serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-	if(serverSocket < 0) return_error("socket error");
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_NUMERICSERV;
 
-	server = gethostbyname(addr);
-	if(server == NULL) return_error("gethostbyname error");
+	int res = getaddrinfo(addr, port, &hints, &serverAddresses);
+	if (res != 0) {
+		fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(res));
+		return -1;
+	}
 
-	port_no = atoi(port);
-	bzero((char*)&server_addr, sizeof server_addr);
-	server_addr.sin_family = AF_INET;
-	bcopy((char*)server->h_addr, (char*)&server_addr.sin_addr.s_addr, server->h_length);
+	int lastSocketError = 0;
+	for (struct addrinfo* server = serverAddresses; server != NULL; server = server->ai_next) {
+		serverSocket = socket(server->ai_family, server->ai_socktype, server->ai_protocol);
+		if (serverSocket < 0) {
+			lastSocketError = errno;
+			continue;
+		}
 
-	server_addr.sin_port = htons(port_no);
+		res = connect(serverSocket, server->ai_addr, server->ai_addrlen);
+		if (res == 0)
+			break;
 
-	int res = connect(serverSocket, (struct sockaddr*)&server_addr, sizeof(server_addr));
-	if(res == -1) return_error("bind error");
+		lastSocketError = errno;
+		close(serverSocket);
+		serverSocket = -1;
+	}
+	freeaddrinfo(serverAddresses);
 
-	pthread_create(&packetHandler, NULL, handleServerPackets, &serverSocket);
-	pthread_detach(packetHandler);
-	pthread_create(&packetSender, NULL, sendQueuedPackets, &serverSocket);
-	pthread_detach(packetSender);
+	if (serverSocket < 0) {
+		errno = lastSocketError;
+		perror("connect error");
+		return -1;
+	}
+
+	// Main owns stableSocketFD until both packet threads have finished.
+	*stableSocketFD = serverSocket;
+	res = pthread_create(&packetHandler, NULL, handleServerPackets, stableSocketFD);
+	if (res != 0) {
+		fprintf(stderr, "pthread_create packetHandler: %s\n", strerror(res));
+		close(serverSocket);
+		*stableSocketFD = -1;
+		return -1;
+	}
+	res = pthread_create(&packetSender, NULL, sendQueuedPackets, stableSocketFD);
+	if (res != 0) {
+		fprintf(stderr, "pthread_create packetSender: %s\n", strerror(res));
+		stopPacketSender();
+		shutdown(serverSocket, SHUT_RDWR);
+		pthread_join(packetHandler, NULL);
+		close(serverSocket);
+		*stableSocketFD = -1;
+		queueExit = false;
+		return -1;
+	}
 
 	return serverSocket;
 }
