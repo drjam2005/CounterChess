@@ -7,7 +7,6 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <errno.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,7 +28,10 @@
 		if(errno != 0) perror("ERROR");\
 		exit(1); \
 	} while(0)
+
 void randomizeBoard(GameState* state);
+void randomizePieces(GameState* state);
+
 void swap_turn(GameState* state) {
 	if(state->currentColorTurn == COLOR_WHITE)
 		state->currentColorTurn = COLOR_BLACK;
@@ -585,7 +587,8 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 							printf("Checkmate!\n");
 
 						if (!gameState->isCheckmate && !gameState->isStalemate)
-							randomizeBoard(gameState);
+							randomizePieces(gameState);
+
 						swap_turn(gameState);
 					}
 					queueGameState(*gameState);
@@ -611,6 +614,46 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 	}
 
 	return true;
+}
+
+
+void randomizePieces(GameState* state){
+	if (state == NULL) return;
+
+	ChessBoard tempBoard = state->currentChessBoard;
+
+	enum PIECE_TYPE chosenType = PIECE_NONE;
+	enum PIECE_TYPE endType    = PIECE_NONE;
+	while((chosenType <= PIECE_INVALID || chosenType >= PIECE_COUNT) || chosenType == PIECE_KING)
+		chosenType = (enum PIECE_TYPE)(rand() % PIECE_COUNT);
+
+	bool causesCheck = ifCheckmate(tempBoard, COLOR_WHITE) || ifCheckmate(tempBoard, COLOR_BLACK);
+	do {
+		causesCheck = false;
+
+		while((endType <= PIECE_INVALID || endType >= PIECE_COUNT) || endType == chosenType || endType == PIECE_KING)
+			endType = (enum PIECE_TYPE)(rand() % PIECE_COUNT);
+
+		printf("trying %s -> %s\n", PieceToString(chosenType), PieceToString(endType));
+
+		for(int y = 0; y < 8; ++y) {
+			for(int x = 0; x < 8; ++x) {
+				if (tempBoard.pieces[y][x].type == chosenType && tempBoard.pieces[y][x].color == state->currentColorTurn)
+					tempBoard.pieces[y][x].type = endType;
+			}
+		}
+		causesCheck = ifCheckmate(tempBoard, COLOR_WHITE) || ifCheckmate(tempBoard, COLOR_BLACK);
+
+		if(causesCheck)
+			printf("Causes check!!! trying something else...\n");
+
+	} while(causesCheck);
+
+	printf("swapped %s -> %s\n", PieceToString(chosenType), PieceToString(endType));
+
+	state->currentChessBoard = tempBoard;
+
+	return;
 }
 
 void randomizeBoard(GameState* state){

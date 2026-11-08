@@ -510,6 +510,9 @@ bool handleGameState(GameState* gameState, fromServerPacketQueue* currentServerP
 		}
 		if(serverPacket.packetType == PACKET_SEND_GAME_STATE) {
 			*gameState = serverPacket.gameState;
+
+			// gameState might also change colors
+			myColor = gameState->playerIDtoColor[clientID];
 		}
 		if(serverPacket.packetType == PACKET_SEND_MESSAGE) {
 			RenderMessage msg;
