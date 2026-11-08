@@ -587,7 +587,7 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 							printf("Checkmate!\n");
 
 						if (!gameState->isCheckmate && !gameState->isStalemate)
-							randomizePieces(gameState);
+							randomizeBoard(gameState);
 
 						swap_turn(gameState);
 					}
