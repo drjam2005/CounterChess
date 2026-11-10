@@ -148,12 +148,6 @@ void renderBoard(const struct GameState gameState, struct RenderInfo info) {
 				}
 			}
 
-			//	if(info.chosenStart.x == boardPosition.x && info.chosenStart.y == boardPosition.y && !info.isPromoting) {
-			//		Vector2 mousePos = GetMousePosition();
-			//		GuiDrawIcon(piece.type + 256, mousePos.x - (8*pixelSize), mousePos.y - (8*pixelSize), pixelSize, piece.color == COLOR_WHITE ? WHITE : BLACK);
-			//	} else
-			//		GuiDrawIcon(piece.type + 256, (int)xStart, (int)yStart, pixelSize, piece.color == COLOR_WHITE ? WHITE : BLACK);
-
 			xStart += squareSize;
 		}
 		xStart = squareSize;

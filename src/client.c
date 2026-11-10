@@ -530,6 +530,8 @@ bool handleGameState(GameState* gameState, fromServerPacketQueue* currentServerP
 			gameState->currentPlayerIDTurn = serverPacket.providedPlayerID;
 		if(serverPacket.packetType == PACKET_INFORM_PLAYER_NOT_TURN)
 			printf("Not your turn... dummy...\n");
+		if(serverPacket.packetType == PACKET_INFORM_PLAYER_SNAPSHOT)
+			printf("snapshot: %s\n", serverPacket.snapshotMessage);
  	}
 
 	return true;

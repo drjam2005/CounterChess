@@ -626,6 +626,14 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 				}
 			}
 		}
+
+		if(strlen(snapshotMessage)){
+			fromServerPacket serverPacket = {0};
+			serverPacket.packetType = PACKET_INFORM_PLAYER_SNAPSHOT;
+			strcpy(serverPacket.snapshotMessage, snapshotMessage);
+			queuePacketAll(serverPacket, *gameState);
+		}
+		
 		if(packet.packetType == PACKET_SEND_MESSAGE) {
 			fromServerPacket serverPacket = {0};
 			serverPacket.packetType = PACKET_SEND_MESSAGE;
@@ -634,6 +642,8 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 				(int)sizeof packet.message, packet.message);
 			queuePacketAll(serverPacket, *gameState);
 		}
+
+
 	}
 
 	// update game state
