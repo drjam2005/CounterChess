@@ -89,6 +89,7 @@ void renderBoard(const struct GameState gameState, struct RenderInfo info) {
 	bool hoveringBoard = hoverX >= 0 && hoverX < 8 && hoverY >= 0 && hoverY < 8
 						 && gameState.currentColorTurn == info.playerColor;
 
+
 	for(int y = 0; y < 8; ++y) {
 		for(int x = 0; x < 8; ++x) {
 			struct PiecePosition boardPosition = toBoardPosition(x, y, info.playerColor);
@@ -157,5 +158,12 @@ void renderBoard(const struct GameState gameState, struct RenderInfo info) {
 		}
 		xStart = squareSize;
 		yStart += squareSize;
+	}
+
+	for(int x = 0; x < 8; ++x) {
+		DrawText(TextFormat("%c", info.playerColor == COLOR_WHITE ? 'a'+x : 'h'-x), squareSize+squareSize/2.0f+(squareSize*x)-10, squareSize/2.0f + (squareSize*9)-10, 20, BLACK);
+	}
+	for(int y = 0; y < 8; ++y) {
+		DrawText(TextFormat("%d", info.playerColor == COLOR_WHITE ? 1+y : 8-y), squareSize/2.0f, squareSize+squareSize/2.0f+(squareSize*(7-y))-5, 20, BLACK);
 	}
 }

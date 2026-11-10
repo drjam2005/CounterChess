@@ -4,6 +4,14 @@
 
 #include "game_state.h"
 
+typedef enum TWISTS_DONE {
+	TWISTS_NONE = 0,
+	TWISTS_SWAPPED_PIECES = (1 << 0),
+	TWISTS_SWAPPED_COLOR = (1 << 1),
+
+	TWISTS_COUNT = (1 << 2)
+} TWISTS_DONE;
+
 enum PACKET_TYPE {
 	// from server / to client
 	PACKET_NULL = 0,
@@ -34,6 +42,9 @@ typedef struct fromServerPacket {
 	// for messages
 	int messageFromID;
 	char message[256];
+
+	// for history
+	char snapshotMessage[256];
 }fromServerPacket;
 
 typedef struct fromClientPacket {

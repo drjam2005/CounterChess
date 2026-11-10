@@ -260,13 +260,13 @@ int main(int argc, char** argv) {
 
 		BeginDrawing();
 		ClearBackground(WHITE);
-		DrawText(TextFormat("ID: %d", clientID), 10, 20, FONT_SIZE, BLACK);
+		//DrawText(TextFormat("ID: %d", clientID), 10, 20, FONT_SIZE, BLACK);
 
-		if (gameState.currentColorTurn == myColor) {
-			DrawText("YOUR TURN", 80, 20, FONT_SIZE, GREEN);
-		} else {
-			DrawText("NOT YOUR TURN", 80, 20, FONT_SIZE, RED);
-		}
+		//if (gameState.currentColorTurn == myColor) {
+		//	DrawText("YOUR TURN", 80, 20, FONT_SIZE, GREEN);
+		//} else {
+		//	DrawText("NOT YOUR TURN", 80, 20, FONT_SIZE, RED);
+		//}
 
 		// main board
 		struct RenderInfo info = {

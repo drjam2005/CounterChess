@@ -29,13 +29,6 @@
 		exit(1); \
 	} while(0)
 
-typedef enum TWISTS_DONE {
-	TWISTS_NONE = 0,
-	TWISTS_SWAPPED_PIECES = (1 << 0),
-	TWISTS_SWAPPED_COLOR = (1 << 1),
-
-	TWISTS_COUNT = (1 << 2)
-} TWISTS_DONE;
 
 TWISTS_DONE randomizeBoard(GameState* state);
 void randomizePieces(GameState* state);
@@ -523,6 +516,9 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 	// PACKET HANDLING
 	while (currentPacketQueue->size > 0) {
 		fromClientPacket packet;
+		char snapshotMessage[256];
+		memset(snapshotMessage, 0, sizeof snapshotMessage);
+
 		if (frontClientPacketQueue(currentPacketQueue, &packet) != 0)
 			return false;
 		if (popClientPacketQueue(currentPacketQueue) != 0)
@@ -555,6 +551,8 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 				printf("Client (%d): SEND_MOVE (%d %d) -> (%d %d) (NOT THEIR TURN)\n", packet.clientID, packet.chosenStart.x, packet.chosenStart.y, packet.chosenEnd.x, packet.chosenEnd.y);
 			} else {
 				printf("Client (%d): SEND_MOVE (%d %d) -> (%d %d) (THEIR TURN)\n", packet.clientID, packet.chosenStart.x, packet.chosenStart.y, packet.chosenEnd.x, packet.chosenEnd.y);
+				snprintf(snapshotMessage, sizeof snapshotMessage, "%s (%s): %c%d -> %c%d", (gameState->playerIDtoColor[packet.clientID] == COLOR_WHITE ? "WHITE" : "BLACK"), (TypeToString(getPieceAt(gameState->currentChessBoard, packet.chosenStart).type)), packet.chosenStart.x+'a', 8-packet.chosenStart.y, packet.chosenEnd.x+'a', 8-packet.chosenEnd.y);
+				printf("%s\n", snapshotMessage);
 				if (getPieceAt(gameState->currentChessBoard, packet.chosenStart).color != gameState->playerIDtoColor[packet.clientID]) {
 					printf("MOVE INVALID!!!\n");
 				} else {
