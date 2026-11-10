@@ -4,6 +4,7 @@
 
 #define WHITE_SQUARE_COLOR (GetColor(0xa8a296FF))
 #define BLACK_SQUARE_COLOR (GetColor(0x445240FF))
+#define BOARD_X_OFFSET 200.0f
 
 struct PiecePosition positions[64];
 int positionsCount = 0;
@@ -63,7 +64,7 @@ void renderBoard(const struct GameState gameState, struct RenderInfo info) {
 		return;
 
 	float squareSize = GetScreenHeight()/10.0f;
-	float xStart = squareSize, yStart = squareSize;
+	float xStart = squareSize + BOARD_X_OFFSET, yStart = squareSize;
 
 	// uhhh render the border of the chessboard
 	DrawRectangleLinesEx((Rectangle){xStart - 5.0f, yStart - 5.0f, squareSize * 8 + 10.0f, squareSize * 8 + 10.0f}, 10.0f, BLACK);
@@ -84,7 +85,7 @@ void renderBoard(const struct GameState gameState, struct RenderInfo info) {
 	}
 
 	Vector2 mouse = GetMousePosition();
-	int hoverX = (int)((mouse.x - squareSize) / squareSize);
+	int hoverX = (int)((mouse.x - squareSize - BOARD_X_OFFSET) / squareSize);
 	int hoverY = (int)((mouse.y - squareSize) / squareSize);
 	bool hoveringBoard = hoverX >= 0 && hoverX < 8 && hoverY >= 0 && hoverY < 8
 						 && gameState.currentColorTurn == info.playerColor;
@@ -111,6 +112,7 @@ void renderBoard(const struct GameState gameState, struct RenderInfo info) {
 				DrawRectangle(xStart, yStart, squareSize, squareSize, ColorLerp(cellColor, YELLOW, 0.25f));
 			}
 
+
 			if(info.chosenStart.x == boardPosition.x && info.chosenStart.y == boardPosition.y
 					&& gameState.currentColorTurn == info.playerColor) {
 				DrawRectangle(xStart, yStart, squareSize, squareSize, ColorLerp(cellColor, GREEN, 0.5f));
@@ -121,11 +123,11 @@ void renderBoard(const struct GameState gameState, struct RenderInfo info) {
 				DrawRectangle(xStart, yStart, squareSize, squareSize, RED);
 			xStart += squareSize;
 		}
-		xStart = squareSize;
+		xStart = squareSize + BOARD_X_OFFSET;
 		yStart += squareSize;
 	}
 
-	xStart = squareSize, yStart = squareSize;
+	xStart = squareSize + BOARD_X_OFFSET, yStart = squareSize;
 	for(int y = 0; y < 8; ++y) {
 		for(int x = 0; x < 8; ++x) {
 			struct PiecePosition boardPosition = toBoardPosition(x, y, info.playerColor);
@@ -145,19 +147,22 @@ void renderBoard(const struct GameState gameState, struct RenderInfo info) {
 								(Rectangle){xStart + (squareSize/2.0f), yStart + (squareSize/2.0f), squareSize, squareSize},
 								(Vector2){squareSize / 2.0f, squareSize / 2.0f}, 0.0f, WHITE);
 					}
+					if(gameState.currentChessBoard.pieces[y][x].previousType != gameState.currentChessBoard.pieces[y][x].type){
+						DrawRectangleLinesEx((Rectangle){xStart, yStart, squareSize, squareSize}, 2.0f, RED);
+					}
 				}
 			}
 
 			xStart += squareSize;
 		}
-		xStart = squareSize;
+		xStart = squareSize + BOARD_X_OFFSET;
 		yStart += squareSize;
 	}
 
 	for(int x = 0; x < 8; ++x) {
-		DrawText(TextFormat("%c", info.playerColor == COLOR_WHITE ? 'a'+x : 'h'-x), squareSize+squareSize/2.0f+(squareSize*x)-10, squareSize/2.0f + (squareSize*9)-10, 20, BLACK);
+		DrawText(TextFormat("%c", info.playerColor == COLOR_WHITE ? 'a'+x : 'h'-x), BOARD_X_OFFSET + squareSize+squareSize/2.0f+(squareSize*x)-10, squareSize/2.0f + (squareSize*9)-10, 20, BLACK);
 	}
 	for(int y = 0; y < 8; ++y) {
-		DrawText(TextFormat("%d", info.playerColor == COLOR_WHITE ? 1+y : 8-y), squareSize/2.0f, squareSize+squareSize/2.0f+(squareSize*(7-y))-5, 20, BLACK);
+		DrawText(TextFormat("%d", info.playerColor == COLOR_WHITE ? 1+y : 8-y), BOARD_X_OFFSET + squareSize/2.0f, squareSize+squareSize/2.0f+(squareSize*(7-y))-5, 20, BLACK);
 	}
 }

@@ -22,6 +22,7 @@
 #include "../include/render_assets.h"
 
 #define FONT_SIZE 25
+#define UI_X_OFFSET 200
 
 #define return_error(...) \
 	do {\
@@ -193,7 +194,7 @@ int main(int argc, char** argv) {
 
 	// initialize rendering
 	SetTraceLogLevel(LOG_NONE);
-	InitWindow(800, 600, "Client Window");
+	InitWindow(1000, 600, "Client Window");
 	loadPieceTextures();
 	SetTargetFPS(60);
 
@@ -278,7 +279,7 @@ int main(int argc, char** argv) {
 		if (gameState.gameStarted) 
 			renderBoard(gameState, info);
 		else
-			DrawText("Waiting for Players...", 100, 100, 20, BLACK);
+			DrawText("Waiting for Players...", 100 + UI_X_OFFSET, 100, 20, BLACK);
 
 		if(gameState.isCheckmate) {
 			render_checkmate_screen(gameState.checkedColor);
@@ -293,7 +294,7 @@ int main(int argc, char** argv) {
 
 		// Message stuff
 		if (GuiTextBox(
-            (Rectangle){ 560, 500, 200, 40 },
+            (Rectangle){ 560 + UI_X_OFFSET, 500, 200, 40 },
             messageBox,
             sizeof(messageBox),
             messageEditMode
@@ -301,7 +302,7 @@ int main(int argc, char** argv) {
 			messageEditMode = !messageEditMode;
 		};
 
-        if (GuiButton((Rectangle){ 560, 550, 70, 40 }, "send")) {
+        if (GuiButton((Rectangle){ 560 + UI_X_OFFSET, 550, 70, 40 }, "send")) {
 			// queue message
 			if(strlen(messageBox)) {
 				fromClientPacket packet = {0};
@@ -315,7 +316,7 @@ int main(int argc, char** argv) {
 
 		// render all messages
 		float yStart = 460;
-		float xStart = 550;
+		float xStart = 550 + UI_X_OFFSET;
 		int messageCount = storedMessageCount;
 
 		for (int i = 0; i < 10 && i < messageCount; ++i) {
@@ -391,7 +392,7 @@ void get_promotion_piece(PiecePosition position, enum PIECE_COLOR clr) {
 	enum PIECE_TYPE options[] = { PIECE_QUEEN, PIECE_KNIGHT, PIECE_ROOK, PIECE_BISHOP };
 	Rectangle optionRects[4];
 	for (int i = 0; i < 4; ++i) {
-		float x = (screenPos.x + 1) * squareSize;
+		float x = (screenPos.x + 1) * squareSize + UI_X_OFFSET;
 		float y = (screenPos.y + direction * i + 1) * squareSize;
 		optionRects[i] = (Rectangle){ x, y, squareSize, squareSize };
 		DrawRectangleRec(optionRects[i], RED);
@@ -429,7 +430,7 @@ void updateBoard(GameState* gameState) {
     float squareSize = GetScreenHeight() / 10.0f;
     Vector2 mouse = GetMousePosition();
 
-    int x = (int)((mouse.x - squareSize) / squareSize);
+    int x = (int)((mouse.x - squareSize - UI_X_OFFSET) / squareSize);
     int y = (int)((mouse.y - squareSize) / squareSize);
 
     if (x < 0 || x >= 8 || y < 0 || y >= 8)

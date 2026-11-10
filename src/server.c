@@ -654,6 +654,12 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 		queueGameState(*gameState);
 	}
 
+	for(int y = 0; y < 8; ++y) {
+		for(int x = 0; x < 8; ++x) {
+			gameState->currentChessBoard.pieces[y][x].previousType = gameState->currentChessBoard.pieces[y][x].type;
+		}
+	}
+
 	return true;
 }
 
@@ -692,7 +698,6 @@ void randomizePieces(GameState* state){
 
 	printf("swapped %s -> %s\n", TypeToString(chosenType), TypeToString(endType));
 
-	state->currentChessBoard = tempBoard;
 
 	return;
 }
@@ -739,8 +744,12 @@ TWISTS_DONE randomizeBoard(GameState* state){
 
 			current_pieces[i]->previousType = current_pieces[i]->type;
 			current_pieces[i]->type = check_type;
-			printf("Current turn color: %d\n", state->currentColorTurn);
 		}
+
+		fromServerPacket serverPacket = {0};
+		serverPacket.packetType = PACKET_INFORM_PLAYER_SNAPSHOT;
+		snprintf(serverPacket.snapshotMessage, sizeof serverPacket.snapshotMessage, "TWIST: Some of %s's pieces randomly promoted!", state->currentColorTurn == COLOR_WHITE ? "WHITE" : "BLACK");
+		queuePacketAll(serverPacket, *state);
 		return true;
 	}
 	
