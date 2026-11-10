@@ -29,7 +29,15 @@
 		exit(1); \
 	} while(0)
 
-bool randomizeBoard(GameState* state);
+typedef enum TWISTS_DONE {
+	TWISTS_NONE = 0,
+	TWISTS_SWAPPED_PIECES = (1 << 0),
+	TWISTS_SWAPPED_COLOR = (1 << 1),
+
+	TWISTS_COUNT = (1 << 2)
+} TWISTS_DONE;
+
+TWISTS_DONE randomizeBoard(GameState* state);
 void randomizePieces(GameState* state);
 
 void swap_turn(GameState* state) {
@@ -681,7 +689,8 @@ void randomizePieces(GameState* state){
 	return;
 }
 
-bool randomizeBoard(GameState* state){
+
+TWISTS_DONE randomizeBoard(GameState* state){
 	if (state == NULL) return false;
 
 	enum PIECE_TYPE	types[5] = {PIECE_PAWN, PIECE_KNIGHT, PIECE_BISHOP, PIECE_ROOK, PIECE_QUEEN};
