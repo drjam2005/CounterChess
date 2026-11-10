@@ -147,7 +147,11 @@ void renderBoard(const struct GameState gameState, struct RenderInfo info) {
 								(Rectangle){xStart + (squareSize/2.0f), yStart + (squareSize/2.0f), squareSize, squareSize},
 								(Vector2){squareSize / 2.0f, squareSize / 2.0f}, 0.0f, WHITE);
 					}
-					if(gameState.currentChessBoard.pieces[y][x].previousType != gameState.currentChessBoard.pieces[y][x].type){
+					// x/y are screen coordinates here; boardPosition is the actual
+					// square after applying the current player's perspective.
+					// Use the piece already looked up at that square so the outline
+					// follows the same piece in either orientation.
+					if(piece.previousType != piece.type){
 						DrawRectangleLinesEx((Rectangle){xStart, yStart, squareSize, squareSize}, 2.0f, RED);
 					}
 				}
