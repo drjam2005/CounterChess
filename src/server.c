@@ -634,7 +634,7 @@ void randomizePieces(GameState* state){
 		while((endType <= PIECE_INVALID || endType >= PIECE_COUNT) || endType == chosenType || endType == PIECE_KING)
 			endType = (enum PIECE_TYPE)(rand() % PIECE_COUNT);
 
-		printf("trying %s -> %s\n", PieceToString(chosenType), PieceToString(endType));
+		printf("trying %s -> %s\n", TypeToString(chosenType), TypeToString(endType));
 
 		for(int y = 0; y < 8; ++y) {
 			for(int x = 0; x < 8; ++x) {
@@ -649,7 +649,7 @@ void randomizePieces(GameState* state){
 
 	} while(causesCheck);
 
-	printf("swapped %s -> %s\n", PieceToString(chosenType), PieceToString(endType));
+	printf("swapped %s -> %s\n", TypeToString(chosenType), TypeToString(endType));
 
 	state->currentChessBoard = tempBoard;
 

@@ -194,6 +194,7 @@ int main(int argc, char** argv) {
 	// initialize rendering
 	SetTraceLogLevel(LOG_NONE);
 	InitWindow(800, 600, "Client Window");
+	loadPieceTextures();
 	SetTargetFPS(60);
 
 	// start rendering
@@ -339,6 +340,7 @@ int main(int argc, char** argv) {
 		pthread_join(packetSender, NULL);
 		close(serverSocket);
 	}
+	unloadPieceTextures();
 	CloseWindow();
 
 	return 0;

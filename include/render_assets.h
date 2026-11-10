@@ -14,6 +14,8 @@ typedef struct RenderInfo {
 } RenderInfo;
 
 void renderBoard(const struct GameState gameState, struct RenderInfo info);
+void loadPieceTextures(void);
+void unloadPieceTextures(void);
 struct PiecePosition toBoardPosition(int x, int y, enum PIECE_COLOR playerColor);
 
 #endif // _RENDER_ASSETS_H

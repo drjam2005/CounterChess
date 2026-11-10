@@ -56,7 +56,8 @@ enum MoveResult movePiece(ChessBoard* board, PiecePosition start, PiecePosition 
 
 ChessPiece getPieceAt(const ChessBoard board, PiecePosition position);
 
-char* PieceToString(enum PIECE_TYPE type);
+char* TypeToString(enum PIECE_TYPE type);
+char* PieceToString(ChessPiece piece);
 
 int GetAvailableMoves(const struct ChessBoard board, struct PiecePosition positionsBuffer[64], struct PiecePosition pos);
 

@@ -90,7 +90,7 @@ const ChessBoard standardBoard = {
 
 // Preserve the existing char* signature for compatibility with chess_board.h.
 // Use writable arrays instead of casting away const from string literals.
-char* PieceToString(enum PIECE_TYPE type) {
+char* TypeToString(enum PIECE_TYPE type) {
     static char pawn[] = "PA", rook[] = "RO", knight[] = "KN";
     static char bishop[] = "BI", queen[] = "QU", king[] = "KI";
     static char none[] = "NO", unknown[] = "UN";
@@ -106,6 +106,25 @@ char* PieceToString(enum PIECE_TYPE type) {
         default:           return unknown;
     }
 }
+
+char* PieceToString(ChessPiece piece) {
+    switch (piece.type) {
+        case PIECE_PAWN:   
+			return (piece.color == COLOR_WHITE ? "wp" : "bp");
+        case PIECE_ROOK:  
+			return (piece.color == COLOR_WHITE ? "wr" : "br");
+        case PIECE_KNIGHT:
+			return (piece.color == COLOR_WHITE ? "wn" : "bn");
+        case PIECE_BISHOP:
+			return (piece.color == COLOR_WHITE ? "wb" : "bb");
+        case PIECE_QUEEN: 
+			return (piece.color == COLOR_WHITE ? "wq" : "bq");
+        case PIECE_KING:  
+			return (piece.color == COLOR_WHITE ? "wk" : "bk");
+        default: return "n";
+    }
+}
+
 
 void print_board(const ChessBoard board) {
     for (int y = 0; y < 8; ++y) {
