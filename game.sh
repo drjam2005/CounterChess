@@ -13,7 +13,7 @@ declare -a HEADER_FILES=($(find ./include/ -type f | sort | grep -E [A-Za-z0-9_]
 
 # dependencies for building executables
 declare -a BUILD_SERVER=("./build/server.o" "./build/helpers.o" "./build/my_structs.o" "./build/chess_board.o" "./build/chess_moves.o")
-declare -a BUILD_CLIENT=("./build/client.o" "./build/helpers.o" "./build/my_structs.o" "./build/chess_board.o" "./build/chess_moves.o" "./build/render_assets.o")
+declare -a BUILD_CLIENT=("./build/client.o" "./build/helpers.o" "./build/my_structs.o" "./build/chess_board.o" "./build/chess_moves.o" "./vendor/alpha/piece_assets.o" "./build/render_assets.o")
 #declare -a BUILD_MAIN=("./build/chessMain.o" "./build/chess_board.o" "./build/chess_moves.o")
 
 # check if delete the entire directory
