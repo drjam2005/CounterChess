@@ -29,7 +29,7 @@
 		exit(1); \
 	} while(0)
 
-void randomizeBoard(GameState* state);
+bool randomizeBoard(GameState* state);
 void randomizePieces(GameState* state);
 
 void swap_turn(GameState* state) {
@@ -586,8 +586,33 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 						if (gameState->isCheckmate)
 							printf("Checkmate!\n");
 
-						if (!gameState->isCheckmate && !gameState->isStalemate)
-							randomizeBoard(gameState);
+						if (!gameState->isCheckmate && !gameState->isStalemate) {
+							if(randomizeBoard(gameState)) {
+								enum PIECE_COLOR colorToCheck = gameState->currentColorTurn == COLOR_BLACK ? COLOR_WHITE : COLOR_BLACK;
+								bool isWhiteChecked = isKingChecked(gameState->currentChessBoard, COLOR_WHITE);
+								bool isBlackChecked = isKingChecked(gameState->currentChessBoard, COLOR_BLACK);
+
+								gameState->isCheckmate = false;
+								gameState->isStalemate = false;
+								gameState->checkedColor = COLOR_NONE;
+								if (isWhiteChecked) {
+									gameState->checkedColor = COLOR_WHITE;
+									if(ifCheckmate(gameState->currentChessBoard, COLOR_WHITE))
+										gameState->isCheckmate = true;
+								}
+								else if(isBlackChecked) {
+									gameState->checkedColor = COLOR_BLACK;
+									if(ifCheckmate(gameState->currentChessBoard, COLOR_BLACK))
+										gameState->isCheckmate = true;
+								} else {
+									bool isStaleMate = ifStalemate(gameState->currentChessBoard, colorToCheck);
+									gameState->isStalemate = isStaleMate;
+									gameState->stalematedColor = colorToCheck;
+									if(isStaleMate)
+										printf("stalemate!!\n");
+								}
+							}
+						}
 
 						swap_turn(gameState);
 					}
@@ -656,8 +681,8 @@ void randomizePieces(GameState* state){
 	return;
 }
 
-void randomizeBoard(GameState* state){
-	if (state == NULL) return;
+bool randomizeBoard(GameState* state){
+	if (state == NULL) return false;
 
 	enum PIECE_TYPE	types[5] = {PIECE_PAWN, PIECE_KNIGHT, PIECE_BISHOP, PIECE_ROOK, PIECE_QUEEN};
 	ChessPiece* current_pieces[64];	
@@ -672,7 +697,7 @@ void randomizeBoard(GameState* state){
 		}
 	}
 	
-	if(count_pos == 0) return;
+	if(count_pos == 0) return false;
 	
 	int chance = rand() % 100;
 	
@@ -699,8 +724,9 @@ void randomizeBoard(GameState* state){
 			current_pieces[i]->type = check_type;
 			printf("Current turn color: %d\n", state->currentColorTurn);
 		}
+		return true;
 	}
 	
 	
-	return;
+	return false;
 }

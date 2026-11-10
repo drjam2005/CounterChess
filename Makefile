@@ -18,8 +18,8 @@ server: ./build/server
 ./build/client.o: ./src/client.c  ./include/* | ./build/
 	gcc -c ./src/client.c  -o ./build/client.o -I ./vendor/X11/include
 
-./build/render_assets.o: ./src/render_assets.c ./vendor/alpha/piece_assets.o ./include* | ./build/
-	gcc -c ./src/render_assets.c ./vendor/alpha/piece_assets.o -o ./build/render_assets.o
+./build/render_assets.o: ./src/render_assets.c  ./include* | ./build/
+	gcc -c ./src/render_assets.c -o ./build/render_assets.o
 
 ./build/chess_piece_iconset.o: ./vendor/tools/rguiicons_v4.0_linux_x64/chess_piece_iconset.c | ./build/
 	gcc -c ./vendor/tools/rguiicons_v4.0_linux_x64/chess_piece_iconset.c -o ./build/chess_piece_iconset.o
