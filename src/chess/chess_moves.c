@@ -557,3 +557,24 @@ bool ifStalemate(const ChessBoard board, enum PIECE_COLOR color){
 
 	return true;
 }
+
+bool ifDraw(const ChessBoard board){
+	for(int x = 0; x < 8; x++){
+		for(int y = 0; y < 8; y++){
+			ChessPiece test_piece = board.pieces[y][x];
+			if(test_piece.type == PIECE_NONE) continue;
+			switch(test_piece.type) {
+				case PIECE_PAWN:
+				case PIECE_KNIGHT:
+				case PIECE_BISHOP:
+				case PIECE_ROOK:
+				case PIECE_QUEEN:
+					return false;
+				default:
+					continue;
+			}
+		}
+	}	
+	
+	return true;
+}
