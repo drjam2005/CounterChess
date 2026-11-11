@@ -7,6 +7,7 @@
 #include <pthread.h>
 #include <stdatomic.h>
 #include <errno.h>
+#include <dlfcn.h>
 
 #include "../include/game_state.h"
 #include "../include/packets.h"
@@ -58,6 +59,14 @@ typedef struct RenderMessage {
 	int id;
 	char message[256];
 } RenderMessage;
+
+// for hot reloading
+const char* libpath = "./build/render_assets.so";
+void *librender_assets = NULL;
+void (*renderBoardP)(const struct GameState gameState, struct RenderInfo info);
+void (*loadPieceTexturesP)(void);
+void (*unloadPieceTexturesP)(void);
+struct PiecePosition (*toBoardPositionP)(int x, int y, enum PIECE_COLOR playerColor);
 
 // std::vector<RenderMessage> gameMessages;
 RenderMessage gameMessages[256];
@@ -173,6 +182,7 @@ void* handleServerPackets(void* sFD) {
 
 bool handleGameState(GameState* gameState, fromServerPacketQueue* currentServerPackets);
 void updateBoard(GameState* gameState);
+void reloadRenderer();
 
 void render_checkmate_screen(enum PIECE_COLOR clr);
 void render_stalemate_screen();
@@ -192,10 +202,12 @@ int main(int argc, char** argv) {
 	memset(messageBox, 0, sizeof messageBox);
 	strcpy(messageBox, "Message...");
 
+	reloadRenderer();
+
 	// initialize rendering
 	SetTraceLogLevel(LOG_NONE);
 	InitWindow(1000, 600, "Client Window");
-	loadPieceTextures();
+	loadPieceTexturesP();
 	SetTargetFPS(60);
 
 	// start rendering
@@ -203,6 +215,11 @@ int main(int argc, char** argv) {
 		if(IsKeyPressed(KEY_ESCAPE) || WindowShouldClose()) {
 			stopPacketSender();
 		}
+
+		if(IsKeyPressed(KEY_R) && IsKeyDown(KEY_LEFT_CONTROL)) {
+			reloadRenderer();
+		}
+
 		if(!argumentsProvided) {
 			BeginDrawing();
 			ClearBackground(RAYWHITE);
@@ -277,7 +294,8 @@ int main(int argc, char** argv) {
 		};
 
 		if (gameState.gameStarted) 
-			renderBoard(gameState, info);
+			//renderBoard(gameState, info);
+			renderBoardP(gameState, info);
 		else
 			DrawText("Waiting for Players...", 100 + UI_X_OFFSET, 100, 20, BLACK);
 
@@ -341,7 +359,7 @@ int main(int argc, char** argv) {
 		pthread_join(packetSender, NULL);
 		close(serverSocket);
 	}
-	unloadPieceTextures();
+	unloadPieceTexturesP();
 	CloseWindow();
 
 	return 0;
@@ -385,7 +403,7 @@ static void submit_promotion(enum PIECE_TYPE pieceType) {
 void get_promotion_piece(PiecePosition position, enum PIECE_COLOR clr) {
 	DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), GetColor(0xFFFFFF55));
 
-	PiecePosition screenPos = toBoardPosition(position.x, position.y, clr);
+	PiecePosition screenPos = toBoardPositionP(position.x, position.y, clr);
 	float squareSize = GetScreenHeight()/10.0f;
 	int pixelSize = squareSize/15;
 	int direction = screenPos.y == 7 ? -1 : 1;
@@ -491,6 +509,39 @@ void updateBoard(GameState* gameState) {
 		//printf("end: %d %d\n", x, y);
 	}
 
+}
+void reloadRenderer() {
+	// Texture handles belong to the current renderer module. Release them while
+	// its unload function is still loaded, then recreate them in the new module.
+	bool windowReady = IsWindowReady();
+	if (windowReady && unloadPieceTexturesP != NULL)
+		unloadPieceTexturesP();
+	if (librender_assets != NULL) {
+		dlclose(librender_assets);
+	}
+
+	librender_assets = dlopen(libpath, RTLD_NOW);
+	if(librender_assets == NULL)
+		return_error("dlopen error...\n");
+
+	renderBoardP = dlsym(librender_assets, "renderBoard");
+	if(renderBoardP == NULL)
+		return_error("renderBoard dlsym error...\n");
+
+	loadPieceTexturesP = dlsym(librender_assets, "loadPieceTextures");
+	if(loadPieceTexturesP == NULL)
+		return_error("loadPieceTextures dlsym error...\n");
+
+	unloadPieceTexturesP = dlsym(librender_assets, "unloadPieceTextures");
+	if(unloadPieceTexturesP == NULL)
+		return_error("unloadPieceTexturesP dlsym error...\n");
+
+	toBoardPositionP = dlsym(librender_assets, "toBoardPosition");
+	if(toBoardPositionP == NULL)
+		return_error("toBoardPositionP dlsym error...\n");
+
+	if (windowReady)
+		loadPieceTexturesP();
 }
 
 bool handleGameState(GameState* gameState, fromServerPacketQueue* currentServerPackets) {
