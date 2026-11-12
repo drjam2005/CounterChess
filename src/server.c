@@ -219,7 +219,9 @@ void *acceptClients(void* serverfd) {
 	while(true) {
 		if(queueExit)
 			break;
-		int clientFD = accept(serverSocket, NULL, NULL);
+		struct sockaddr_in clientAddress;
+		socklen_t clientAddressSize = sizeof clientAddress;
+		int clientFD = accept(serverSocket, (struct sockaddr *)&clientAddress, &clientAddressSize);
 		if(clientFD == -1) {
 			// Closing the listening socket is how main wakes accept during shutdown.
 			if (queueExit)
@@ -239,7 +241,7 @@ void *acceptClients(void* serverfd) {
 		struct timeval sendTimeout = {.tv_sec = 3, .tv_usec = 0};
 		setsockopt(clientFD, SOL_SOCKET, SO_SNDTIMEO, &sendTimeout, sizeof sendTimeout);
 
-		// this assumes only MAX_PLAYERS clients at most
+		// this assumes only 2 MAX_PLAYERS clients at most
 		int id = 0;
 		pthread_mutex_lock(&gameStateMutex);
 			if (gameState.currentPlayerCount < MAX_PLAYERS) {
@@ -302,7 +304,7 @@ void *acceptClients(void* serverfd) {
 			continue;
 		}
 
-		printf("Accepting Client with FD of %d and ID of %d\n", clientFD, id);
+		printf("Client connected (FD %d, player %d).\n", clientFD, id);
 
 		Client* client = malloc(sizeof *client);
 		if (client == NULL) {
@@ -341,9 +343,10 @@ int main(int argc, char** argv) {
 	char* end = NULL;
 	errno = 0;
 	long requestedPort = strtol(argv[1], &end, 10);
-	if (errno != 0 || *argv[1] == '\0' || *end != '\0' || requestedPort < 1 || requestedPort > 65535)
-		return_error("invalid port (must be 1-65535)");
+	if (errno != 0 || *argv[1] == '\0' || *end != '\0' || requestedPort < 1025 || requestedPort > 65535)
+		return_error("invalid port (must be 1025-65535)");
 
+	printf("Server starting ...\n");
 	int serverSocket, port_no;
 	struct sockaddr_in server_addr;
 
@@ -377,6 +380,8 @@ int main(int argc, char** argv) {
 
 	// listen on port
 	if (listen(serverSocket, 5) == -1) return_error("listen error");
+	printf("Server listening to port %d ...\n", port_no);
+	printf("Waiting for connection(s) ...\n");
 	res = pthread_create(&clientAcceptor, NULL, acceptClients, &serverSocket);
 	if (res != 0) return_error("failed to start client acceptor: %s", strerror(res));
 

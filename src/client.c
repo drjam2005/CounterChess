@@ -1,3 +1,4 @@
+#include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -7,6 +8,7 @@
 #include <pthread.h>
 #include <stdatomic.h>
 #include <errno.h>
+     #include <arpa/inet.h>
 
 #include "../include/game_state.h"
 #include "../include/packets.h"
@@ -539,45 +541,47 @@ bool handleGameState(GameState* gameState, fromServerPacketQueue* currentServerP
 }
 
 int handleConnection(const char* port, const char* addr, int* stableSocketFD) {
-	int serverSocket = -1;
-	struct addrinfo hints = {0};
-	struct addrinfo *serverAddresses = NULL;
-
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_flags = AI_NUMERICSERV;
-
-	int res = getaddrinfo(addr, port, &hints, &serverAddresses);
-	if (res != 0) {
-		fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(res));
+	char* end = NULL;
+	errno = 0;
+	long requestedPort = strtol(port, &end, 10);
+	if (errno != 0 || *port == '\0' || *end != '\0' || requestedPort < 1025 || requestedPort > 65535) {
+		fprintf(stderr, "invalid port (must be 1025-65535)\n");
 		return -1;
 	}
 
-	int lastSocketError = 0;
-	for (struct addrinfo* server = serverAddresses; server != NULL; server = server->ai_next) {
-		serverSocket = socket(server->ai_family, server->ai_socktype, server->ai_protocol);
-		if (serverSocket < 0) {
-			lastSocketError = errno;
-			continue;
-		}
+	int serverSocket;
+	struct sockaddr_in server_addr = {0};
+	struct hostent* server;
 
-		res = connect(serverSocket, server->ai_addr, server->ai_addrlen);
-		if (res == 0)
-			break;
-
-		lastSocketError = errno;
-		close(serverSocket);
-		serverSocket = -1;
-	}
-	freeaddrinfo(serverAddresses);
-
+	serverSocket = socket(AF_INET, SOCK_STREAM, 0);
 	if (serverSocket < 0) {
-		errno = lastSocketError;
-		perror("connect error");
+		perror("socket error");
 		return -1;
 	}
 
-	// Main owns stableSocketFD until both packet threads have finished.
+	server = gethostbyname(addr);
+	if (server == NULL) {
+		fprintf(stderr, "unknown server host: %s\n", addr);
+		close(serverSocket);
+		return -1;
+	}
+	if (server->h_addrtype != AF_INET || server->h_length != (int)sizeof server_addr.sin_addr) {
+		fprintf(stderr, "server host did not resolve to an IPv4 address\n");
+		close(serverSocket);
+		return -1;
+	}
+
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons((unsigned short)requestedPort);
+	memcpy(&server_addr.sin_addr, server->h_addr_list[0], sizeof server_addr.sin_addr);
+
+	int res = connect(serverSocket, (struct sockaddr *)&server_addr, sizeof server_addr);
+	if (res == -1) {
+		perror("connect error");
+		close(serverSocket);
+		return -1;
+	}
+
 	*stableSocketFD = serverSocket;
 	res = pthread_create(&packetHandler, NULL, handleServerPackets, stableSocketFD);
 	if (res != 0) {
