@@ -657,6 +657,7 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 	for(int y = 0; y < 8; ++y) {
 		for(int x = 0; x < 8; ++x) {
 			gameState->currentChessBoard.pieces[y][x].previousType = gameState->currentChessBoard.pieces[y][x].type;
+			gameState->currentChessBoard.pieces[y][x].previousColor = gameState->currentChessBoard.pieces[y][x].color;
 		}
 	}
 

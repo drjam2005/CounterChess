@@ -6,84 +6,84 @@
 const ChessBoard standardBoard = {
     .pieces = {
         {
-            {.color = COLOR_BLACK, .type = PIECE_ROOK, .previousType = PIECE_ROOK},
-            {.color = COLOR_BLACK, .type = PIECE_KNIGHT, .previousType = PIECE_KNIGHT},
-            {.color = COLOR_BLACK, .type = PIECE_BISHOP, .previousType = PIECE_BISHOP},
-            {.color = COLOR_BLACK, .type = PIECE_QUEEN, .previousType = PIECE_QUEEN},
-            {.color = COLOR_BLACK, .type = PIECE_KING, .previousType = PIECE_KING},
-            {.color = COLOR_BLACK, .type = PIECE_BISHOP, .previousType = PIECE_BISHOP},
-            {.color = COLOR_BLACK, .type = PIECE_KNIGHT, .previousType = PIECE_KNIGHT},
-            {.color = COLOR_BLACK, .type = PIECE_ROOK, .previousType = PIECE_ROOK}
+            {.color = COLOR_BLACK, .previousColor = COLOR_BLACK, .type = PIECE_ROOK, .previousType = PIECE_ROOK},
+            {.color = COLOR_BLACK, .previousColor = COLOR_BLACK, .type = PIECE_KNIGHT, .previousType = PIECE_KNIGHT},
+            {.color = COLOR_BLACK, .previousColor = COLOR_BLACK, .type = PIECE_BISHOP, .previousType = PIECE_BISHOP},
+            {.color = COLOR_BLACK, .previousColor = COLOR_BLACK, .type = PIECE_QUEEN, .previousType = PIECE_QUEEN},
+            {.color = COLOR_BLACK, .previousColor = COLOR_BLACK, .type = PIECE_KING, .previousType = PIECE_KING},
+            {.color = COLOR_BLACK, .previousColor = COLOR_BLACK, .type = PIECE_BISHOP, .previousType = PIECE_BISHOP},
+            {.color = COLOR_BLACK, .previousColor = COLOR_BLACK, .type = PIECE_KNIGHT, .previousType = PIECE_KNIGHT},
+            {.color = COLOR_BLACK, .previousColor = COLOR_BLACK, .type = PIECE_ROOK, .previousType = PIECE_ROOK}
+        },                                              
+        {                                               
+            {.color = COLOR_BLACK, .previousColor = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
+            {.color = COLOR_BLACK, .previousColor = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
+            {.color = COLOR_BLACK, .previousColor = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
+            {.color = COLOR_BLACK, .previousColor = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
+            {.color = COLOR_BLACK, .previousColor = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
+            {.color = COLOR_BLACK, .previousColor = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
+            {.color = COLOR_BLACK, .previousColor = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
+            {.color = COLOR_BLACK, .previousColor = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN}
         },
         {
-            {.color = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
-            {.color = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
-            {.color = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
-            {.color = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
-            {.color = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
-            {.color = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
-            {.color = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
-            {.color = COLOR_BLACK, .type = PIECE_PAWN, .previousType = PIECE_PAWN}
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE}
         },
         {
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE}
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE}
         },
         {
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE}
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE}
         },
         {
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE}
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
+            {.color = COLOR_NONE, .previousColor = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE}
         },
         {
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE},
-            {.color = COLOR_NONE, .type = PIECE_NONE, .previousType = PIECE_NONE}
+            {.color = COLOR_WHITE, .previousColor = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
+            {.color = COLOR_WHITE, .previousColor = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
+            {.color = COLOR_WHITE, .previousColor = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
+            {.color = COLOR_WHITE, .previousColor = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
+            {.color = COLOR_WHITE, .previousColor = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
+            {.color = COLOR_WHITE, .previousColor = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
+            {.color = COLOR_WHITE, .previousColor = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
+            {.color = COLOR_WHITE, .previousColor = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN}
         },
         {
-            {.color = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
-            {.color = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
-            {.color = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
-            {.color = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
-            {.color = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
-            {.color = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
-            {.color = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN},
-            {.color = COLOR_WHITE, .type = PIECE_PAWN, .previousType = PIECE_PAWN}
-        },
-        {
-            {.color = COLOR_WHITE, .type = PIECE_ROOK, .previousType = PIECE_ROOK},
-            {.color = COLOR_WHITE, .type = PIECE_KNIGHT, .previousType = PIECE_KNIGHT},
-            {.color = COLOR_WHITE, .type = PIECE_BISHOP, .previousType = PIECE_BISHOP},
-            {.color = COLOR_WHITE, .type = PIECE_QUEEN, .previousType = PIECE_QUEEN},
-            {.color = COLOR_WHITE, .type = PIECE_KING, .previousType = PIECE_KING},
-            {.color = COLOR_WHITE, .type = PIECE_BISHOP, .previousType = PIECE_BISHOP},
-            {.color = COLOR_WHITE, .type = PIECE_KNIGHT, .previousType = PIECE_KNIGHT},
-            {.color = COLOR_WHITE, .type = PIECE_ROOK, .previousType = PIECE_ROOK}
+            {.color = COLOR_WHITE, .previousColor = COLOR_WHITE, .type = PIECE_ROOK, .previousType = PIECE_ROOK},
+            {.color = COLOR_WHITE, .previousColor = COLOR_WHITE, .type = PIECE_KNIGHT, .previousType = PIECE_KNIGHT},
+            {.color = COLOR_WHITE, .previousColor = COLOR_WHITE, .type = PIECE_BISHOP, .previousType = PIECE_BISHOP},
+            {.color = COLOR_WHITE, .previousColor = COLOR_WHITE, .type = PIECE_QUEEN, .previousType = PIECE_QUEEN},
+            {.color = COLOR_WHITE, .previousColor = COLOR_WHITE, .type = PIECE_KING, .previousType = PIECE_KING},
+            {.color = COLOR_WHITE, .previousColor = COLOR_WHITE, .type = PIECE_BISHOP, .previousType = PIECE_BISHOP},
+            {.color = COLOR_WHITE, .previousColor = COLOR_WHITE, .type = PIECE_KNIGHT, .previousType = PIECE_KNIGHT},
+            {.color = COLOR_WHITE, .previousColor = COLOR_WHITE, .type = PIECE_ROOK, .previousType = PIECE_ROOK}
         }
     }
 };
@@ -219,7 +219,7 @@ enum MoveResult movePiece(ChessBoard* board, PiecePosition start, PiecePosition 
     ChessPiece empty = {};
     empty.color = COLOR_NONE;
     empty.type = PIECE_NONE;
-    empty.previousType = PIECE_NONE;
+    empty.previousType = target.type;
 
     bool enPassant = false;
     bool pawnDoubleStep = false;
@@ -306,8 +306,9 @@ enum MoveResult movePiece(ChessBoard* board, PiecePosition start, PiecePosition 
             piece.pawn2Stepped = false;
         }
 
-        board->pieces[start.y][start.x] = empty;
-        board->pieces[end.y][end.x] = piece;
+        board->pieces[start.y][start.x].type = PIECE_NONE;
+        board->pieces[end.y][end.x].type = piece.type;
+        board->pieces[end.y][end.x].color = piece.color;
     }
 
     return result;
