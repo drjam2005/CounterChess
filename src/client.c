@@ -516,29 +516,30 @@ void reloadRenderer() {
 	bool windowReady = IsWindowReady();
 	if (windowReady && unloadPieceTexturesP != NULL)
 		unloadPieceTexturesP();
+
 	if (librender_assets != NULL) {
 		dlclose(librender_assets);
 	}
 
 	librender_assets = dlopen(libpath, RTLD_NOW);
 	if(librender_assets == NULL)
-		return_error("dlopen error...\n");
+		return_error("dlopen: %s\n", dlerror());
 
 	renderBoardP = dlsym(librender_assets, "renderBoard");
 	if(renderBoardP == NULL)
-		return_error("renderBoard dlsym error...\n");
+		return_error("renderBoard dlsym: %s\n", dlerror());
 
 	loadPieceTexturesP = dlsym(librender_assets, "loadPieceTextures");
 	if(loadPieceTexturesP == NULL)
-		return_error("loadPieceTextures dlsym error...\n");
+		return_error("loadPieceTextures dlsym: %s\n", dlerror());
 
 	unloadPieceTexturesP = dlsym(librender_assets, "unloadPieceTextures");
 	if(unloadPieceTexturesP == NULL)
-		return_error("unloadPieceTexturesP dlsym error...\n");
+		return_error("unloadPieceTexturesP dlsym: %s\n", dlerror());
 
 	toBoardPositionP = dlsym(librender_assets, "toBoardPosition");
 	if(toBoardPositionP == NULL)
-		return_error("toBoardPositionP dlsym error...\n");
+		return_error("toBoardPositionP dlsym: %s\n", dlerror());
 
 	if (windowReady)
 		loadPieceTexturesP();
