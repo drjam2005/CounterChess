@@ -19,6 +19,13 @@
 		exit(1); \
 	} while(0)
 
+#define DLSYM(plug, func, sym) \
+	do {\
+		func = dlsym((plug)->handle, (sym));\
+		if((func) == NULL) \
+			return_error("dlsym: %s\n", dlerror());\
+	} while(0)
+
 void reloadPlugClient(PlugClient* plug){
 #ifdef RELOAD
 	bool windowReady = IsWindowReady();
@@ -48,11 +55,15 @@ void reloadPlugClient(PlugClient* plug){
 	if(plug->toBoardPosition == NULL)
 		return_error("dlsym: %s\n", dlerror());
 
+	DLSYM(plug, plug->renderMessages, "renderMessages");
+
 	if (windowReady)
 		plug->loadPieceTextures();
 #else
 	plug->renderBoard = renderBoard;
 	plug->loadPieceTextures = loadPieceTextures;
 	plug->unloadPieceTextures = unloadPieceTextures;
+	plug->toBoardPosition = toBoardPosition;
+	plug->renderMessages = renderMessages;
 #endif
 }

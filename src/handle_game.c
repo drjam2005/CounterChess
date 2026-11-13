@@ -15,6 +15,7 @@
 #include "../include/handle_game.h"
 #include "../include/packet_handler.h"
 #include "../include/my_structs.h"
+#include "../vendor/raylib/include/raylib.h"
 
 #define return_error(...) \
 	do {\
@@ -225,7 +226,6 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 	// send all players the current game state
 	if (gameInfo.broadcastGameState) {
 		printf("gameState has been updated, broadcasting...\n");
-		gameInfo.broadcastGameState = false;
 		queueGameState(*gameState, stru);
 	}
 

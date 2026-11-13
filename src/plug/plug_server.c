@@ -19,6 +19,14 @@
 		exit(1); \
 	} while(0)
 
+#define DLSYM(plug, func, sym) \
+	do {\
+		func = dlsym((plug)->handle, (sym));\
+		if((func) == NULL) \
+			return_error("dlsym: %s\n", dlerror());\
+	} while(0)
+
+
 void reloadPlugServer(PlugServer* plug){
 #ifdef RELOAD
 	if(plug->handle != NULL)
@@ -28,7 +36,9 @@ void reloadPlugServer(PlugServer* plug){
 	if(plug->handle == NULL)
 		return_error("dlopen: %s\n", dlerror());
 
-	plug->handleGameState = dlsym(plug->handle, "handleGameState");
+
+	DLSYM(plug, plug->handleGameState, "handleGameState");
+	//plug->handleGameState = dlsym(plug->handle, "handleGameState");
 #else
 	plug->handleGameState = handleGameState;
 #endif

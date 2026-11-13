@@ -1,95 +1,62 @@
-# for all
-all: network 
+.DEFAULT_GOAL := all
+.PHONY: all network client server clean
 
-# for network
+CC = gcc
+CFLAGS += -O0 -pthread
+LDFLAGS += -Lvendor/X11/lib -Lvendor/raylib/lib -Wl,-rpath,./vendor/X11/lib
+LDLIBS += -l:libraylib.a -lX11 -lm -ldl -pthread
+
+ifdef RELEASE
+MODE := release
+else
+MODE := reload
+CFLAGS += -rdynamic -DRELOAD
+endif
+OBJDIR := build/$(MODE)
+
+COMMON_SRC := src/my_structs.c src/helpers.c src/packets.c \
+              src/chess/chess_board.c src/chess/chess_moves.c
+CLIENT_SRC := $(COMMON_SRC) src/client.c src/plug/plug_client.c
+SERVER_SRC := $(COMMON_SRC) src/server.c src/plug/plug_server.c
+ifdef RELEASE
+CLIENT_SRC += src/render_assets.c
+SERVER_SRC += src/handle_game.c
+else
+CLIENT_LIB := build/librender_assets.so
+SERVER_LIB := build/libhandle_game.so
+endif
+CLIENT_OBJ := $(patsubst src/%.c,$(OBJDIR)/%.o,$(CLIENT_SRC))
+SERVER_OBJ := $(patsubst src/%.c,$(OBJDIR)/%.o,$(SERVER_SRC))
+
+all: network
 network: client server
-client: ./build/client
-server: ./build/server
+client: build/client
+server: build/server
 
-# for Chess
-# chess: ./build/chessMain
+# Relink when switching modes, even when the other mode's objects are older.
+.PHONY: FORCE
+FORCE:
 
-LIBS=-L ./vendor/X11/lib -L ./vendor/raylib/lib/ -Wl,-rpath,./vendor/X11/lib -l:libraylib.a -lX11 -lm
+build/client: $(CLIENT_OBJ) vendor/alpha/piece_assets.o $(CLIENT_LIB) FORCE
+	$(CC) $(CFLAGS) $(LDFLAGS) $(CLIENT_OBJ) vendor/alpha/piece_assets.o -o $@ $(LDLIBS)
 
+build/server: $(SERVER_OBJ) $(SERVER_LIB) FORCE
+	$(CC) $(CFLAGS) $(LDFLAGS) $(SERVER_OBJ) -o $@ $(LDLIBS)
 
-ifdef RELEASE
-COMPILEFLAGS = -O0
-else
-COMPILEFLAGS = -O0 -rdynamic -DRELOAD
-endif
+$(OBJDIR)/%.o: src/%.c Makefile
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -MMD -MP -c $< -o $@
 
-ifdef RELEASE
-./build/client: ./build/client.o ./build/helpers.o ./build/my_structs.o ./build/chess_board.o ./build/chess_moves.o ./vendor/alpha/piece_assets.o ./build/plug_client.o ./build/render_assets.o ./build/packets.o | ./build/
-	gcc $(COMPILEFLAGS) ./build/client.o ./build/helpers.o ./build/my_structs.o ./build/chess_board.o ./build/chess_moves.o ./vendor/alpha/piece_assets.o ./build/plug_client.o ./build/render_assets.o ./build/packets.o -o ./build/client  $(LIBS) 
-./build/server: ./build/server.o ./build/helpers.o ./build/my_structs.o ./build/chess_board.o ./build/chess_moves.o ./build/packets.o ./build/handle_game.o ./build/plug_server.o | ./build/
-	gcc $(COMPILEFLAGS) ./build/server.o ./build/helpers.o ./build/my_structs.o ./build/chess_board.o ./build/chess_moves.o ./build/handle_game.o ./build/plug_server.o -o ./build/server ./build/packets.o $(LIBS)
-else
-./build/client: ./build/client.o ./build/helpers.o ./build/my_structs.o ./build/chess_board.o ./build/chess_moves.o ./vendor/alpha/piece_assets.o ./build/plug_client.o ./build/librender_assets.so ./build/packets.o | ./build/
-	gcc $(COMPILEFLAGS) ./build/client.o ./build/helpers.o ./build/my_structs.o ./build/chess_board.o ./build/chess_moves.o ./vendor/alpha/piece_assets.o ./build/plug_client.o ./build/packets.o -o ./build/client  $(LIBS) 
-./build/server: ./build/server.o ./build/helpers.o ./build/my_structs.o ./build/chess_board.o ./build/chess_moves.o ./build/libhandle_game.so ./build/packets.o ./build/plug_server.o | ./build/
-	gcc $(COMPILEFLAGS) ./build/server.o ./build/helpers.o ./build/my_structs.o ./build/chess_board.o ./build/chess_moves.o ./build/packets.o ./build/plug_server.o -o ./build/server $(LIBS)
-endif
+build/librender_assets.so: src/render_assets.c Makefile
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -MMD -MP -MF build/librender_assets.d -shared -fPIC $< -o $@
 
-./build/client.o: ./src/client.c  ./include/*  | ./build/
-	gcc -c ./src/client.c  -o ./build/client.o -I ./vendor/X11/include
+build/libhandle_game.so: src/handle_game.c Makefile
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -MMD -MP -MF build/libhandle_game.d -shared -fPIC $< -o $@
 
-ifdef RELEASE
-./build/plug_client.o: ./src/plug/plug_client.c ./include/* | ./build/
-	gcc $(COMPILEFLAGS) -c ./src/plug/plug_client.c -o ./build/plug_client.o
-else
-./build/plug_client.o: ./src/plug/plug_client.c ./include/* | ./build/
-	gcc $(COMPILEFLAGS) -c ./src/plug/plug_client.c -o ./build/plug_client.o
-endif
-
-./build/librender_assets.so: ./src/render_assets.c ./include/* | ./build/
-	gcc $(COMPILEFLAGS) -shared -fPIC ./src/render_assets.c -o ./build/librender_assets.so
-
-ifdef RELEASE
-./build/plug_server.o: ./src/plug/plug_server.c ./include/* | ./build/
-	gcc $(COMPILEFLAGS) -c ./src/plug/plug_server.c -o ./build/plug_server.o
-else
-./build/plug_server.o: ./src/plug/plug_server.c ./include/* | ./build/
-	gcc $(COMPILEFLAGS) -c ./src/plug/plug_server.c -o ./build/plug_server.o
-endif
-
-./build/handle_game.o: ./src/handle_game.c  ./include/* | ./build/
-	gcc $(COMPILEFLAGS) -c ./src/handle_game.c -o ./build/handle_game.o
-
-./build/libhandle_game.so: ./src/handle_game.c  ./include/* | ./build/
-	gcc $(COMPILEFLAGS) -shared -fPIC ./src/handle_game.c -o ./build/libhandle_game.so
-
-./build/render_assets.o: ./src/render_assets.c  ./include/* | ./build/
-	gcc $(COMPILEFLAGS) -c ./src/render_assets.c -o ./build/render_assets.o
-
-./build/chess_piece_iconset.o: ./vendor/tools/rguiicons_v4.0_linux_x64/chess_piece_iconset.c | ./build/
-	gcc $(COMPILEFLAGS) -c ./vendor/tools/rguiicons_v4.0_linux_x64/chess_piece_iconset.c -o ./build/chess_piece_iconset.o
-
-./build/server.o: ./src/server.c ./include/* | ./build/
-	gcc $(COMPILEFLAGS) -c ./src/server.c -o ./build/server.o -I ./vendor/X11/include
-
-./build/helpers.o: ./src/helpers.c ./include/* | ./build/
-	gcc $(COMPILEFLAGS) -c ./src/helpers.c -o ./build/helpers.o
-
-./build/packets.o: ./src/packets.c ./include/packets.h ./include/packet_handler.h | ./build/
-	gcc $(COMPILEFLAGS) -c ./src/packets.c -o ./build/packets.o
-
-./build/my_structs.o: ./src/my_structs.c ./include/my_structs.h ./include/packets.h | ./build/
-	gcc $(COMPILEFLAGS) -c ./src/my_structs.c -o ./build/my_structs.o
-
-./build/chessMain: ./build/chessMain.o ./build/chess_moves.o ./build/chess_board.o
-	g++ $(COMPILEFLAGS) -o ./build/chessMain ./build/chessMain.o ./build/chess_moves.o ./build/chess_board.o
-
-./build/chessMain.o: ./src/chess/chessMain.c | ./build/
-	g++ $(COMPILEFLAGS) -c -o ./build/chessMain.o ./src/chess/chessMain.c
-
-./build/chess_moves.o: ./src/chess/chess_moves.c | ./build/
-	gcc $(COMPILEFLAGS) -c -o ./build/chess_moves.o ./src/chess/chess_moves.c
-
-./build/chess_board.o: ./src/chess/chess_board.c | ./build/
-	gcc $(COMPILEFLAGS) -c -o ./build/chess_board.o ./src/chess/chess_board.c
-
-./build/:
-	mkdir -p build
+-include $(CLIENT_OBJ:.o=.d) $(SERVER_OBJ:.o=.d) \
+         build/librender_assets.d build/libhandle_game.d
 
 clean:
-	rm -rf ./build/
+	rm -rf build/
