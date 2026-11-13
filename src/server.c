@@ -12,8 +12,10 @@
 #include <string.h>
 #include <time.h>
 
+#include "../include/plug/plug.h"
+#include "../include/handle_game.h"
 #include "../include/game_state.h"
-#include "../include/packets.h"
+#include "../include/packet_handler.h"
 #include "../include/helpers.h"
 #include "../include/my_structs.h"
 #include "../vendor/raylib/include/raylib.h"
@@ -33,12 +35,6 @@
 TWISTS_DONE randomizeBoard(GameState* state);
 void randomizePieces(GameState* state);
 
-void swap_turn(GameState* state) {
-	if(state->currentColorTurn == COLOR_WHITE)
-		state->currentColorTurn = COLOR_BLACK;
-	else
-		state->currentColorTurn = COLOR_WHITE;
-}
 
 typedef struct Client {
 	int id;
@@ -51,6 +47,7 @@ GameState gameState = {0};
 pthread_mutex_t gameStateMutex = PTHREAD_MUTEX_INITIALIZER;
 atomic_bool queueExit = false;
 bool broadcastGameState = false;
+PlugServer plug = {0};
 
 // threads
 pthread_t outboundSender;
@@ -73,55 +70,14 @@ pthread_mutex_t clientReadersMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t clientReadersFinished = PTHREAD_COND_INITIALIZER;
 size_t activeClientReaders = 0;
 
+queueServerStruct stru;
+
 void stopOutboundSender(void) {
 	pthread_mutex_lock(&toClientPacketQueueMutex);
 	queueExit = true;
 	pthread_cond_broadcast(&toClientPacketQueueReady);
 	pthread_mutex_unlock(&toClientPacketQueueMutex);
 }
-
-bool queuePacket(const fromServerPacket packet) {
-	pthread_mutex_lock(&toClientPacketQueueMutex);
-	if (queueExit) {
-		pthread_mutex_unlock(&toClientPacketQueueMutex);
-		return false;
-	}
-	// Retain a separate socket descriptor until this packet is sent.
-	// This prevents a disconnected client's FD from being reused for an older packet.
-	fromServerPacket queuedPacket = packet;
-	queuedPacket.receivingFD = dup(packet.receivingFD);
-	if (queuedPacket.receivingFD == -1) {
-		pthread_mutex_unlock(&toClientPacketQueueMutex);
-		perror("dup outgoing socket");
-		return false;
-	}
-	if (enqueueServerPacketQueue(&toClientPacketQueue, queuedPacket) != 0) {
-		close(queuedPacket.receivingFD);
-		pthread_mutex_unlock(&toClientPacketQueueMutex);
-		fprintf(stderr, "outgoing packet queue is full; packet was not sent\n");
-		return false;
-	}
-	pthread_cond_signal(&toClientPacketQueueReady);
-	pthread_mutex_unlock(&toClientPacketQueueMutex);
-	return true;
-}
-
-void queuePacketAll(const fromServerPacket packet, const GameState state) {
-	fromServerPacket tempPacket = packet;
-	int clientFDs[MAX_PLAYERS];
-
-	for (int i = 0; i < MAX_PLAYERS; ++i)
-		clientFDs[i] = state.playerIDtoFD[i + 1];
-
-	for (int i = 0; i < MAX_PLAYERS; ++i) {
-		int clientFD = clientFDs[i];
-		if (clientFD == 0)
-			continue;
-		tempPacket.receivingFD = clientFD;
-		queuePacket(tempPacket);
-	}
-}
-
 
 void *sendQueuedPackets(void* d) {
 	(void)d;
@@ -158,15 +114,7 @@ void *sendQueuedPackets(void* d) {
 	}
 }
 
-void queueGameState(const GameState state) {
-	fromServerPacket packet = {0};
-	packet.packetType = PACKET_SEND_GAME_STATE;
-	packet.gameState = state;
-	queuePacketAll(packet, state);
-}
-
 void handleClientDisconnect(int clientFD, int clientID);
-bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQueue);
 
 void* handleClientPackets(void* clientArgs) {
 	Client client = *(Client*)clientArgs;
@@ -294,9 +242,9 @@ void *acceptClients(void* serverfd) {
 
 		packet.receivingFD = clientFD;
 		// Keep the ID and initial snapshot ordered with respect to game updates.
-		bool queuedID = queuePacket(packet);
+		bool queuedID = queueServerPacket(packet, stru);
 		if (queuedID)
-			queueGameState(stateSnapshot);
+			queueGameState(stateSnapshot, stru);
 		pthread_mutex_unlock(&gameStateMutex);
 		if (!queuedID) {
 			handleClientDisconnect(clientFD, id);
@@ -366,6 +314,16 @@ int main(int argc, char** argv) {
 
 	int res = bind(serverSocket, (struct sockaddr *)&server_addr, sizeof server_addr);
 	if (res == -1) return_error("bind error");
+	
+	stru = (queueServerStruct){
+		.toClientPacketQueueMutex = &toClientPacketQueueMutex,
+		.toClientPacketQueueReady = &toClientPacketQueueReady,
+		.toClientQueue = &toClientPacketQueue,
+		.queueExit = &queueExit
+	};
+
+	plug.libpath = "./build/libhandle_game.so";
+	reloadPlugServer(&plug);
 
 	// initialize rendering
 	SetTraceLogLevel(LOG_NONE);
@@ -394,18 +352,23 @@ int main(int argc, char** argv) {
 				stateSnapshot = gameState;
 				fromServerPacket packet = {0};
 				packet.packetType = PACKET_SERVER_SHUTDOWN;
-				queuePacketAll(packet, stateSnapshot);
+				queueServerPacketAll(packet, stateSnapshot, stru);
 			pthread_mutex_unlock(&gameStateMutex);
 
 			stopOutboundSender();
 			break;
 		}
 
+		if(IsKeyPressed(KEY_R) && IsKeyDown(KEY_LEFT_CONTROL)) {
+			reloadPlugServer(&plug);
+		}
+
 		// packet handling
 		GameState stateSnapshot;
 		pthread_mutex_lock(&gameStateMutex);
 		pthread_mutex_lock(&clientPacketQueueMutex);
-			if (!handleGameState(&gameState, &currentPacketQueue))
+		GameInfo info = { .broadcastGameState = broadcastGameState };
+			if (!plug.handleGameState(&gameState, &currentPacketQueue, info, stru))
 				fprintf(stderr, "failed to handle incoming game packets\n");
 			stateSnapshot = gameState;
 		pthread_mutex_unlock(&clientPacketQueueMutex);
@@ -516,160 +479,6 @@ void handleClientDisconnect(int clientFD, int clientID) {
 	pthread_mutex_unlock(&gameStateMutex);
 }
 
-bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQueue) {
-	// handle game loop
-	// PACKET HANDLING
-	while (currentPacketQueue->size > 0) {
-		fromClientPacket packet;
-		char snapshotMessage[256];
-		memset(snapshotMessage, 0, sizeof snapshotMessage);
-
-		if (frontClientPacketQueue(currentPacketQueue, &packet) != 0)
-			return false;
-		if (popClientPacketQueue(currentPacketQueue) != 0)
-			return false;
-
-		// handle each queued client packet
-		if (packet.clientID < 1 || packet.clientID > MAX_PLAYERS ||
-			gameState->playerIDtoFD[packet.clientID] != packet.clientFD)
-			continue;
-
-		if(packet.packetType == PACKET_SEND_MOVE) {
-			if (!gameState->gameStarted || gameState->currentPlayerCount != MAX_PLAYERS ||
-				gameState->isCheckmate || gameState->isStalemate)
-				continue;
-
-			if (packet.chosenStart.x < 0 || packet.chosenStart.x >= 8 ||
-				packet.chosenStart.y < 0 || packet.chosenStart.y >= 8 ||
-				packet.chosenEnd.x < 0 || packet.chosenEnd.x >= 8 ||
-				packet.chosenEnd.y < 0 || packet.chosenEnd.y >= 8) {
-				fprintf(stderr, "Client (%d): move coordinates out of bounds\n", packet.clientID);
-				continue;
-			}
-
-			if (gameState->currentColorTurn != gameState->playerIDtoColor[packet.clientID]) {
-				fromServerPacket serverPacket = {0};
-				serverPacket.packetType = PACKET_INFORM_PLAYER_NOT_TURN;
-				serverPacket.receivingFD = packet.clientFD;
-				queuePacket(serverPacket);
-
-				printf("Client (%d): SEND_MOVE (%d %d) -> (%d %d) (NOT THEIR TURN)\n", packet.clientID, packet.chosenStart.x, packet.chosenStart.y, packet.chosenEnd.x, packet.chosenEnd.y);
-			} else {
-				printf("Client (%d): SEND_MOVE (%d %d) -> (%d %d) (THEIR TURN)\n", packet.clientID, packet.chosenStart.x, packet.chosenStart.y, packet.chosenEnd.x, packet.chosenEnd.y);
-				snprintf(snapshotMessage, sizeof snapshotMessage, "%s (%s): %c%d -> %c%d", (gameState->playerIDtoColor[packet.clientID] == COLOR_WHITE ? "WHITE" : "BLACK"), (TypeToString(getPieceAt(gameState->currentChessBoard, packet.chosenStart).type)), packet.chosenStart.x+'a', 8-packet.chosenStart.y, packet.chosenEnd.x+'a', 8-packet.chosenEnd.y);
-				printf("%s\n", snapshotMessage);
-				if (getPieceAt(gameState->currentChessBoard, packet.chosenStart).color != gameState->playerIDtoColor[packet.clientID]) {
-					printf("MOVE INVALID!!!\n");
-				} else {
-					// Apply the move to a copy so an invalid move cannot damage the board.
-					ChessBoard updatedBoard = gameState->currentChessBoard;
-					enum MoveResult res = movePiece(&updatedBoard, packet.chosenStart, packet.chosenEnd, packet.chosenType);
-					if (res < MOVE_VALID) {
-						printf("MOVE INVALID!!!\n");
-					} else {
-						gameState->currentChessBoard = updatedBoard;
-						printf("MOVE VALID!!!\n");
-						// The next player must be evaluated after the successful move.
-						enum PIECE_COLOR colorToCheck = gameState->currentColorTurn == COLOR_BLACK ? COLOR_WHITE : COLOR_BLACK;
-						bool isWhiteChecked = isKingChecked(gameState->currentChessBoard, COLOR_WHITE);
-						bool isBlackChecked = isKingChecked(gameState->currentChessBoard, COLOR_BLACK);
-
-						gameState->isCheckmate = false;
-						gameState->isStalemate = false;
-						gameState->checkedColor = COLOR_NONE;
-						if (isWhiteChecked) {
-							gameState->checkedColor = COLOR_WHITE;
-							if(ifCheckmate(gameState->currentChessBoard, COLOR_WHITE))
-								gameState->isCheckmate = true;
-						}
-						else if(isBlackChecked) {
-							gameState->checkedColor = COLOR_BLACK;
-							if(ifCheckmate(gameState->currentChessBoard, COLOR_BLACK))
-								gameState->isCheckmate = true;
-						} else {
-							bool isStaleMate = ifStalemate(gameState->currentChessBoard, colorToCheck);
-							gameState->isStalemate = isStaleMate;
-							gameState->stalematedColor = colorToCheck;
-							if(isStaleMate)
-								printf("stalemate!!\n");
-						}
-
-						if (gameState->isCheckmate)
-							printf("Checkmate!\n");
-
-						if (!gameState->isCheckmate && !gameState->isStalemate) {
-							if(randomizeBoard(gameState)) {
-								enum PIECE_COLOR colorToCheck = gameState->currentColorTurn == COLOR_BLACK ? COLOR_WHITE : COLOR_BLACK;
-								bool isWhiteChecked = isKingChecked(gameState->currentChessBoard, COLOR_WHITE);
-								bool isBlackChecked = isKingChecked(gameState->currentChessBoard, COLOR_BLACK);
-
-								gameState->isCheckmate = false;
-								gameState->isStalemate = false;
-								gameState->checkedColor = COLOR_NONE;
-								if (isWhiteChecked) {
-									gameState->checkedColor = COLOR_WHITE;
-									if(ifCheckmate(gameState->currentChessBoard, COLOR_WHITE))
-										gameState->isCheckmate = true;
-								}
-								else if(isBlackChecked) {
-									gameState->checkedColor = COLOR_BLACK;
-									if(ifCheckmate(gameState->currentChessBoard, COLOR_BLACK))
-										gameState->isCheckmate = true;
-								} else {
-									bool isStaleMate = ifStalemate(gameState->currentChessBoard, colorToCheck);
-									gameState->isStalemate = isStaleMate;
-									gameState->stalematedColor = colorToCheck;
-									if(isStaleMate)
-										printf("stalemate!!\n");
-								}
-							}
-						}
-
-						swap_turn(gameState);
-					}
-					queueGameState(*gameState);
-				}
-			}
-		}
-
-		if(strlen(snapshotMessage)){
-			fromServerPacket serverPacket = {0};
-			serverPacket.packetType = PACKET_INFORM_PLAYER_SNAPSHOT;
-			strcpy(serverPacket.snapshotMessage, snapshotMessage);
-			queuePacketAll(serverPacket, *gameState);
-		}
-		
-		if(packet.packetType == PACKET_SEND_MESSAGE) {
-			fromServerPacket serverPacket = {0};
-			serverPacket.packetType = PACKET_SEND_MESSAGE;
-			serverPacket.messageFromID = packet.clientID;
-			snprintf(serverPacket.message, sizeof serverPacket.message, "%.*s",
-				(int)sizeof packet.message, packet.message);
-			queuePacketAll(serverPacket, *gameState);
-		}
-
-
-	}
-
-	// update game state
-	// send all players the current game state
-	if (broadcastGameState) {
-		printf("gameState has been updated, broadcasting...\n");
-		broadcastGameState = false;
-		queueGameState(*gameState);
-	}
-
-	for(int y = 0; y < 8; ++y) {
-		for(int x = 0; x < 8; ++x) {
-			gameState->currentChessBoard.pieces[y][x].previousType = gameState->currentChessBoard.pieces[y][x].type;
-			gameState->currentChessBoard.pieces[y][x].previousColor = gameState->currentChessBoard.pieces[y][x].color;
-		}
-	}
-
-	return true;
-}
-
-
 void randomizePieces(GameState* state){
 	if (state == NULL) return;
 
@@ -709,56 +518,3 @@ void randomizePieces(GameState* state){
 }
 
 
-TWISTS_DONE randomizeBoard(GameState* state){
-	if (state == NULL) return false;
-
-	enum PIECE_TYPE	types[5] = {PIECE_PAWN, PIECE_KNIGHT, PIECE_BISHOP, PIECE_ROOK, PIECE_QUEEN};
-	ChessPiece* current_pieces[64];	
-	int count_pos = 0;
-
-	for(int x = 0; x < 8; x++){
-		for(int y = 0; y < 8; y++){
-			ChessPiece* current_piece = &state->currentChessBoard.pieces[x][y];		
-			if(current_piece->color == state->currentColorTurn && current_piece->type != PIECE_KING && current_piece->type != PIECE_NONE){
-				current_pieces[count_pos++] = current_piece;
-			}
-		}
-	}
-	
-	if(count_pos == 0) return false;
-	
-	int chance = rand() % 100;
-	
-	if(chance < 25){
-		int num_of_pieces = rand() % count_pos + 1;
-
-		// Fisher-Yates shuffle (ik ik, its quite a 'random' algorithm to use haha)
-		for (int i = count_pos - 1; i > 0; i--) {
-			int j = rand() % (i + 1);
-
-			ChessPiece* temp = current_pieces[i];
-			current_pieces[i] = current_pieces[j];
-			current_pieces[j] = temp;
-		}
-
-		for(int i = 0; i < num_of_pieces; i++){
-			enum PIECE_TYPE check_type = types[rand() % 5];
-
-			while(current_pieces[i]->type == check_type){
-				check_type = types[rand() % 5];
-			}
-
-			current_pieces[i]->previousType = current_pieces[i]->type;
-			current_pieces[i]->type = check_type;
-		}
-
-		fromServerPacket serverPacket = {0};
-		serverPacket.packetType = PACKET_INFORM_PLAYER_SNAPSHOT;
-		snprintf(serverPacket.snapshotMessage, sizeof serverPacket.snapshotMessage, "TWIST: Some of %s's pieces randomly promoted!", state->currentColorTurn == COLOR_WHITE ? "WHITE" : "BLACK");
-		queuePacketAll(serverPacket, *state);
-		return true;
-	}
-	
-	
-	return false;
-}

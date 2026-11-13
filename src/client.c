@@ -12,7 +12,7 @@
 #include <arpa/inet.h>
 
 #include "../include/game_state.h"
-#include "../include/packets.h"
+#include "../include/packet_handler.h"
 #include "../include/helpers.h"
 #include "../include/my_structs.h"
 #include "../vendor/raylib/include/raylib.h"
@@ -23,6 +23,7 @@
 #define RAYGUI_IMPLEMENTATION
 #include "../vendor/raylib/include/raygui.h"
 #include "../include/render_assets.h"
+#include "../include/plug/plug.h"
 
 #define FONT_SIZE 25
 #define UI_X_OFFSET 200
@@ -51,6 +52,9 @@ bool promotionOpenedThisFrame = false;
 atomic_bool queueExit = false;
 enum PIECE_TYPE chosenType = PIECE_NONE;
 
+// for hot reloading
+PlugClient plug = {0};
+
 // for inputting
 char ipBox[256] = "127.0.0.1";
 bool ipEditMode = true;
@@ -61,14 +65,6 @@ typedef struct RenderMessage {
 	int id;
 	char message[256];
 } RenderMessage;
-
-// for hot reloading
-const char* libpath = "./build/render_assets.so";
-void *librender_assets = NULL;
-void (*renderBoardP)(const struct GameState gameState, struct RenderInfo info);
-void (*loadPieceTexturesP)(void);
-void (*unloadPieceTexturesP)(void);
-struct PiecePosition (*toBoardPositionP)(int x, int y, enum PIECE_COLOR playerColor);
 
 // std::vector<RenderMessage> gameMessages;
 RenderMessage gameMessages[256];
@@ -81,32 +77,24 @@ pthread_t packetSender;
 fromServerPacketQueue currentServerPackets = {0};
 pthread_mutex_t currentServerPacketQueue = PTHREAD_MUTEX_INITIALIZER;
 
-fromClientPacketQueue toServerPacketsQueue = {0};
-pthread_mutex_t toServerPacketsQueueMutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t toServerPacketsQueueReady = PTHREAD_COND_INITIALIZER;
+fromClientPacketQueue toServerPacketQueue = {0};
+pthread_mutex_t toServerPacketQueueMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t toServerPacketQueueReady = PTHREAD_COND_INITIALIZER;
+
+queueClientStruct stru = {
+	.toServerPacketQueueMutex = &toServerPacketQueueMutex,
+	.toServerPacketQueueReady = &toServerPacketQueueReady,
+	.toServerQueue = &toServerPacketQueue,
+	.queueExit = &queueExit
+};
 
 void stopPacketSender(void) {
-	pthread_mutex_lock(&toServerPacketsQueueMutex);
+	pthread_mutex_lock(&toServerPacketQueueMutex);
 	queueExit = true;
-	pthread_cond_broadcast(&toServerPacketsQueueReady);
-	pthread_mutex_unlock(&toServerPacketsQueueMutex);
+	pthread_cond_broadcast(&toServerPacketQueueReady);
+	pthread_mutex_unlock(&toServerPacketQueueMutex);
 }
 
-bool queuePacket(const fromClientPacket packet) {
-	pthread_mutex_lock(&toServerPacketsQueueMutex);
-	if (queueExit) {
-		pthread_mutex_unlock(&toServerPacketsQueueMutex);
-		return false;
-	}
-	if (enqueueClientPacketQueue(&toServerPacketsQueue, packet) != 0) {
-		pthread_mutex_unlock(&toServerPacketsQueueMutex);
-		fprintf(stderr, "outgoing packet queue is full\n");
-		return false;
-	}
-	pthread_cond_signal(&toServerPacketsQueueReady);
-	pthread_mutex_unlock(&toServerPacketsQueueMutex);
-	return true;
-}
 
 void* sendQueuedPackets(void* sFD) {
 	int serverFD = *(int*)sFD;
@@ -117,21 +105,21 @@ void* sendQueuedPackets(void* sFD) {
 	while(true) {
 		fromClientPacket packet;
 		{
-			pthread_mutex_lock(&toServerPacketsQueueMutex);
-			while (toServerPacketsQueue.size == 0 && !queueExit)
-				pthread_cond_wait(&toServerPacketsQueueReady, &toServerPacketsQueueMutex);
+			pthread_mutex_lock(&toServerPacketQueueMutex);
+			while (toServerPacketQueue.size == 0 && !queueExit)
+				pthread_cond_wait(&toServerPacketQueueReady, &toServerPacketQueueMutex);
 			if (queueExit) {
-				pthread_mutex_unlock(&toServerPacketsQueueMutex);
+				pthread_mutex_unlock(&toServerPacketQueueMutex);
 				return NULL;
 			}
-			if (frontClientPacketQueue(&toServerPacketsQueue, &packet) != 0 ||
-				popClientPacketQueue(&toServerPacketsQueue) != 0) {
-				pthread_mutex_unlock(&toServerPacketsQueueMutex);
+			if (frontClientPacketQueue(&toServerPacketQueue, &packet) != 0 ||
+				popClientPacketQueue(&toServerPacketQueue) != 0) {
+				pthread_mutex_unlock(&toServerPacketQueueMutex);
 				fprintf(stderr, "failed to read outgoing packet queue\n");
 				stopPacketSender();
 				return NULL;
 			}
-			pthread_mutex_unlock(&toServerPacketsQueueMutex);
+			pthread_mutex_unlock(&toServerPacketQueueMutex);
 		}
 
 		if(sendAll(serverFD, &packet, sizeof packet, sendFlags) <= 0) {
@@ -184,7 +172,6 @@ void* handleServerPackets(void* sFD) {
 
 bool handleGameState(GameState* gameState, fromServerPacketQueue* currentServerPackets);
 void updateBoard(GameState* gameState);
-void reloadRenderer();
 
 void render_checkmate_screen(enum PIECE_COLOR clr);
 void render_stalemate_screen();
@@ -199,17 +186,18 @@ int main(int argc, char** argv) {
 		argumentsProvided = handleConnection(argv[2], argv[1], &serverSocket) >= 0;
 	}
 
+	plug.libpath = "./build/librender_assets.so";
+	reloadPlugClient(&plug);
 
 	memset(&gameState, 0, sizeof gameState);
 	memset(messageBox, 0, sizeof messageBox);
 	strcpy(messageBox, "Message...");
 
-	reloadRenderer();
 
 	// initialize rendering
 	SetTraceLogLevel(LOG_NONE);
 	InitWindow(1000, 600, "Client Window");
-	loadPieceTexturesP();
+	plug.loadPieceTextures();
 	SetTargetFPS(60);
 
 	// start rendering
@@ -219,7 +207,7 @@ int main(int argc, char** argv) {
 		}
 
 		if(IsKeyPressed(KEY_R) && IsKeyDown(KEY_LEFT_CONTROL)) {
-			reloadRenderer();
+			reloadPlugClient(&plug);
 		}
 
 		if(!argumentsProvided) {
@@ -297,7 +285,7 @@ int main(int argc, char** argv) {
 
 		if (gameState.gameStarted) 
 			//renderBoard(gameState, info);
-			renderBoardP(gameState, info);
+			plug.renderBoard(gameState, info);
 		else
 			DrawText("Waiting for Players...", 100 + UI_X_OFFSET, 100, 20, BLACK);
 
@@ -329,7 +317,7 @@ int main(int argc, char** argv) {
 				packet.packetType = PACKET_SEND_MESSAGE;
 				snprintf(packet.message, sizeof packet.message, "%s", messageBox);
 
-				if (queuePacket(packet))
+				if (queueClientPacket(packet, stru))
 					messageBox[0] = '\0';
 			}
         }
@@ -361,7 +349,7 @@ int main(int argc, char** argv) {
 		pthread_join(packetSender, NULL);
 		close(serverSocket);
 	}
-	unloadPieceTexturesP();
+	plug.unloadPieceTextures();
 	CloseWindow();
 
 	return 0;
@@ -392,7 +380,7 @@ static void submit_promotion(enum PIECE_TYPE pieceType) {
 	packet.chosenStart = chosenStart;
 	packet.chosenEnd = chosenEnd;
 	packet.chosenType = pieceType;
-	if (!queuePacket(packet))
+	if (!queueClientPacket(packet, stru))
 		return;
 
 	isPromoting = false;
@@ -405,7 +393,7 @@ static void submit_promotion(enum PIECE_TYPE pieceType) {
 void get_promotion_piece(PiecePosition position, enum PIECE_COLOR clr) {
 	DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), GetColor(0xFFFFFF55));
 
-	PiecePosition screenPos = toBoardPositionP(position.x, position.y, clr);
+	PiecePosition screenPos = plug.toBoardPosition(position.x, position.y, clr);
 	float squareSize = GetScreenHeight()/10.0f;
 	int pixelSize = squareSize/15;
 	int direction = screenPos.y == 7 ? -1 : 1;
@@ -496,7 +484,7 @@ void updateBoard(GameState* gameState) {
 		packet.chosenStart = chosenStart;
 		packet.chosenEnd = chosenEnd;
 		packet.chosenType = PIECE_NONE;
-		if (!queuePacket(packet))
+		if (!queueClientPacket(packet, stru))
 			return;
 
 		// temporary update own board for smooth client-side rendering
@@ -511,40 +499,6 @@ void updateBoard(GameState* gameState) {
 		//printf("end: %d %d\n", x, y);
 	}
 
-}
-void reloadRenderer() {
-	// Texture handles belong to the current renderer module. Release them while
-	// its unload function is still loaded, then recreate them in the new module.
-	bool windowReady = IsWindowReady();
-	if (windowReady && unloadPieceTexturesP != NULL)
-		unloadPieceTexturesP();
-
-	if (librender_assets != NULL) {
-		dlclose(librender_assets);
-	}
-
-	librender_assets = dlopen(libpath, RTLD_NOW);
-	if(librender_assets == NULL)
-		return_error("dlopen: %s\n", dlerror());
-
-	renderBoardP = dlsym(librender_assets, "renderBoard");
-	if(renderBoardP == NULL)
-		return_error("renderBoard dlsym: %s\n", dlerror());
-
-	loadPieceTexturesP = dlsym(librender_assets, "loadPieceTextures");
-	if(loadPieceTexturesP == NULL)
-		return_error("loadPieceTextures dlsym: %s\n", dlerror());
-
-	unloadPieceTexturesP = dlsym(librender_assets, "unloadPieceTextures");
-	if(unloadPieceTexturesP == NULL)
-		return_error("unloadPieceTexturesP dlsym: %s\n", dlerror());
-
-	toBoardPositionP = dlsym(librender_assets, "toBoardPosition");
-	if(toBoardPositionP == NULL)
-		return_error("toBoardPositionP dlsym: %s\n", dlerror());
-
-	if (windowReady)
-		loadPieceTexturesP();
 }
 
 bool handleGameState(GameState* gameState, fromServerPacketQueue* currentServerPackets) {
