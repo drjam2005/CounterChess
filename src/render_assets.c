@@ -112,13 +112,20 @@ void renderBoard(const struct GameState gameState, struct RenderInfo info) {
 				DrawRectangle(xStart, yStart, squareSize, squareSize, ColorLerp(cellColor, YELLOW, 0.25f));
 			}
 
+			ChessPiece piece = getPieceAt(gameState.currentChessBoard, boardPosition);
+			if(piece.type != PIECE_NONE && (piece.type != piece.previousType && piece.color != piece.previousColor)){
+				DrawRectangle(xStart, yStart, squareSize, squareSize, ColorLerp(cellColor, ORANGE, 0.50f));
+			} 
+
+			if(piece.type == PIECE_NONE && (piece.type != piece.previousType)){
+				DrawRectangle(xStart, yStart, squareSize, squareSize, ColorLerp(cellColor, ORANGE, 0.25f));
+			} 
 
 			if(info.chosenStart.x == boardPosition.x && info.chosenStart.y == boardPosition.y
 					&& gameState.currentColorTurn == info.playerColor) {
 				DrawRectangle(xStart, yStart, squareSize, squareSize, ColorLerp(cellColor, GREEN, 0.5f));
 			}
 
-			ChessPiece piece = getPieceAt(gameState.currentChessBoard, boardPosition);
 			if(piece.type == PIECE_KING && gameState.checkedColor == piece.color)
 				DrawRectangle(xStart, yStart, squareSize, squareSize, RED);
 			xStart += squareSize;
@@ -151,7 +158,7 @@ void renderBoard(const struct GameState gameState, struct RenderInfo info) {
 					// square after applying the current player's perspective.
 					// Use the piece already looked up at that square so the outline
 					// follows the same piece in either orientation.
-					if(piece.previousType != piece.type){
+					if(piece.previousType != PIECE_NONE && piece.previousType != piece.type && piece.previousColor == piece.color){
 						DrawRectangleLinesEx((Rectangle){xStart, yStart, squareSize, squareSize}, 2.0f, RED);
 					}
 				}

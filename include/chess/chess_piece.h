@@ -34,6 +34,7 @@ typedef struct ChessPiece {
 	enum PIECE_TYPE type;
 
 	enum PIECE_TYPE previousType;
+	enum PIECE_COLOR previousColor;
 	bool hasMoved;
 	bool pawn2Stepped;
 } ChessPiece;
