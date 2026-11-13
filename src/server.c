@@ -421,6 +421,18 @@ int main(int argc, char** argv) {
 				20, (FONT_SIZE*23) - (int)(packetIndex * FONT_SIZE), FONT_SIZE, BLACK);
 		}
 
+
+		//DrawRectangle(20, FONT_SIZE*5, GetScreenWidth()-40, FONT_SIZE*20, GRAY);
+		if (GuiButton((Rectangle){ GetScreenWidth()-120, FONT_SIZE*26, 100, 40 }, "RESTART GAME")) {
+			gameState.isCheckmate = false;
+			gameState.isStalemate = false;
+			gameState.isRotated = false;
+			gameState.checkedColor = COLOR_NONE;
+			gameState.currentPlayerIDTurn = 1;
+			gameState.currentColorTurn = COLOR_WHITE;
+			gameState.currentChessBoard = standardBoard;
+			queueGameState(gameState, stru);
+		}
 		EndDrawing();
 	}
 

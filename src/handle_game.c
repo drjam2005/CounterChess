@@ -15,6 +15,7 @@
 #include "../include/handle_game.h"
 #include "../include/packet_handler.h"
 #include "../include/my_structs.h"
+#include "../vendor/raylib/include/raylib.h"
 
 #define return_error(...) \
 	do {\

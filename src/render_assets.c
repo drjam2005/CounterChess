@@ -112,8 +112,6 @@ void renderBoard(const struct GameState gameState, struct RenderInfo info) {
 			}
 
 			
-			if (found)
-				DrawRectangle(xStart, yStart, squareSize, squareSize, ColorLerp(cellColor, GREEN, 0.25f));
 
 			if(hoveringBoard && hoverX == x && hoverY == y) {
 				DrawRectangle(xStart, yStart, squareSize, squareSize, ColorLerp(cellColor, YELLOW, 0.25f));
@@ -127,6 +125,9 @@ void renderBoard(const struct GameState gameState, struct RenderInfo info) {
 			if(piece.type == PIECE_NONE && (piece.type != piece.previousType)){
 				DrawRectangle(xStart, yStart, squareSize, squareSize, ColorLerp(cellColor, ORANGE, 0.25f));
 			} 
+
+			if (found)
+				DrawRectangle(xStart, yStart, squareSize, squareSize, ColorLerp(cellColor, GREEN, 0.25f));
 
 			if(info.chosenStart.x == boardPosition.x && info.chosenStart.y == boardPosition.y
 					&& gameState.currentColorTurn == info.playerColor) {
@@ -150,7 +151,7 @@ void renderBoard(const struct GameState gameState, struct RenderInfo info) {
 					piece.color >= COLOR_WHITE && piece.color <= COLOR_BLACK) {
 				Texture2D tex = pieceTextures[piece.color][piece.type];
 				if (tex.id != 0) {
-					if(info.chosenStart.x == boardPosition.x && info.chosenStart.y == boardPosition.y && !info.isPromoting) {
+					if(info.chosenStart.x == boardPosition.x && info.chosenStart.y == boardPosition.y && !info.isPromoting && getPieceAt(gameState.currentChessBoard, boardPosition).color == info.playerColor) {
 						Vector2 mousePos = GetMousePosition();
 						//GuiDrawIcon(piece.type + 256, mousePos.x - (8*pixelSize), mousePos.y - (8*pixelSize), pixelSize, piece.color == COLOR_WHITE ? WHITE : BLACK);
 						DrawTexturePro(tex, (Rectangle){0, 0, (float)tex.width, (float)tex.height},
