@@ -559,22 +559,40 @@ bool ifStalemate(const ChessBoard board, enum PIECE_COLOR color){
 }
 
 bool ifDraw(const ChessBoard board){
-	for(int x = 0; x < 8; x++){
-		for(int y = 0; y < 8; y++){
-			ChessPiece test_piece = board.pieces[y][x];
-			if(test_piece.type == PIECE_NONE) continue;
-			switch(test_piece.type) {
-				case PIECE_PAWN:
-				case PIECE_KNIGHT:
-				case PIECE_BISHOP:
-				case PIECE_ROOK:
-				case PIECE_QUEEN:
-					return false;
-				default:
-					continue;
-			}
-		}
-	}	
-	
-	return true;
+    int total_pieces = 0;
+    int count_bishop = 0;
+    int bishop_square_color = -1;
+    bool bishops_same_color = true;
+
+    for(int x = 0; x < 8; x++){
+        for(int y = 0; y < 8; y++){
+            ChessPiece test_piece = board.pieces[y][x];
+            if(test_piece.type == PIECE_NONE) continue;
+            switch(test_piece.type) {
+                case PIECE_PAWN:
+                case PIECE_ROOK:
+                case PIECE_QUEEN:
+                    return false;
+                case PIECE_KNIGHT:
+                    total_pieces++;
+                    break;
+                case PIECE_BISHOP: 
+                    total_pieces++;
+                    count_bishop++;
+                    int square_color = (x + y) % 2;
+                    if(bishop_square_color == -1)
+                        bishop_square_color = square_color;
+                    else if(bishop_square_color != square_color)
+                        bishops_same_color = false;
+                    break;
+                default:
+                    continue;
+            }
+        }
+    }
+
+    if(total_pieces <= 1) return true;
+    if(total_pieces == 2 && count_bishop == 2 && bishops_same_color) return true;
+
+    return false;
 }
