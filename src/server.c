@@ -370,6 +370,8 @@ int main(int argc, char** argv) {
 		GameInfo info = { .broadcastGameState = broadcastGameState };
 			if (!plug.handleGameState(&gameState, &currentPacketQueue, info, stru))
 				fprintf(stderr, "failed to handle incoming game packets\n");
+			else
+				broadcastGameState = false;
 			stateSnapshot = gameState;
 		pthread_mutex_unlock(&clientPacketQueueMutex);
 		pthread_mutex_unlock(&gameStateMutex);

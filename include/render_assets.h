@@ -18,4 +18,11 @@ void loadPieceTextures(void);
 void unloadPieceTextures(void);
 struct PiecePosition toBoardPosition(int x, int y, enum PIECE_COLOR playerColor);
 
+typedef struct RenderMessage {
+	int id;
+	char message[256];
+} RenderMessage;
+
+void renderMessages(RenderMessage* messages, int currentIndex, int clientID, int storedMessageCount); 
+
 #endif // _RENDER_ASSETS_H

@@ -61,12 +61,7 @@ bool ipEditMode = true;
 char portBox[256] = "5050";
 bool portEditMode = true;
 
-typedef struct RenderMessage {
-	int id;
-	char message[256];
-} RenderMessage;
 
-// std::vector<RenderMessage> gameMessages;
 RenderMessage gameMessages[256];
 int currentIndex = 0;
 int storedMessageCount = 0;
@@ -323,23 +318,24 @@ int main(int argc, char** argv) {
         }
 
 		// render all messages
-		float yStart = 460;
-		float xStart = 550 + UI_X_OFFSET;
-		int messageCount = storedMessageCount;
+		// float yStart = 460;
+		// float xStart = 550 + UI_X_OFFSET;
+		// int messageCount = storedMessageCount;
 
-		for (int i = 0; i < 10 && i < messageCount; ++i) {
-			int index = (currentIndex + 255 - i) % 256;
+		// for (int i = 0; i < 10 && i < messageCount; ++i) {
+		// 	int index = (currentIndex + 255 - i) % 256;
 
-			int messageWidth = MeasureText(gameMessages[index].message, 20);
+		// 	int messageWidth = MeasureText(gameMessages[index].message, 20);
 
-			if (gameMessages[index].id == clientID) {
-				DrawText(gameMessages[index].message,
-						 xStart + 200 - messageWidth, yStart - (i * 25), 20, GREEN);
-			} else {
-				DrawText(gameMessages[index].message,
-						 xStart, yStart - (i * 25), 20, BLACK);
-			}
-		}
+		// 	if (gameMessages[index].id == clientID) {
+		// 		DrawText(gameMessages[index].message,
+		// 				 xStart + 200 - messageWidth, yStart - (i * 25), 20, GREEN);
+		// 	} else {
+		// 		DrawText(gameMessages[index].message,
+		// 				 xStart, yStart - (i * 25), 20, BLACK);
+		// 	}
+		// }
+		plug.renderMessages(gameMessages, currentIndex, clientID, storedMessageCount);
 		EndDrawing();
 	}
 	stopPacketSender();

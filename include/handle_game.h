@@ -2,9 +2,9 @@
 #ifndef HANDLE_GAME_H
 #define HANDLE_GAME_H
 
-#include "../include/game_state.h"
-#include "../include/packet_handler.h"
-#include "../include/my_structs.h"
+#include "game_state.h"
+#include "packet_handler.h"
+#include "my_structs.h"
 
 typedef struct GameInfo {
 	bool broadcastGameState;

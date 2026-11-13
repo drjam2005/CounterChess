@@ -225,7 +225,6 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 	// send all players the current game state
 	if (gameInfo.broadcastGameState) {
 		printf("gameState has been updated, broadcasting...\n");
-		gameInfo.broadcastGameState = false;
 		queueGameState(*gameState, stru);
 	}
 

@@ -27,3 +27,15 @@ helpers `sendAll(...)` and `recvAll(...)` are present in
 for now, some implementation may not be the best choices due to it's
 brute-force creation :sob:, current version is not final and is still subject
 to change and optimization and correctness
+
+### Source layout
+- `src/chess/`: chess rules and board logic.
+- `src/`: client/server code, packets, socket helpers, rendering, and shared data structures.
+- `src/plug/`: hot-reload code.
+- `include/chess/`: chess board and piece headers.
+- `include/plug/`: hot-reload interface.
+- `include/`: remaining headers, including game state.
+
+Run `make` for the hot-reload build or `make RELEASE=1` for the static build.
+Build outputs stay in `build/`; object files mirror the source directories.
+`./game.sh` forwards its arguments to Make.
