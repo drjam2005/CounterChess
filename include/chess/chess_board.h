@@ -51,6 +51,7 @@ bool isPiecePresent(const ChessBoard board, PiecePosition position);
 bool isKingChecked(const ChessBoard board, enum PIECE_COLOR color);
 bool ifCheckmate(const ChessBoard board, enum PIECE_COLOR color);
 bool ifStalemate(const ChessBoard board, enum PIECE_COLOR color);
+bool ifDraw(const ChessBoard board);
 enum MoveResult evaluateMove(ChessBoard* board, PiecePosition start, PiecePosition end);
 enum MoveResult movePiece(ChessBoard* board, PiecePosition start, PiecePosition end, enum PIECE_TYPE providedType);
 

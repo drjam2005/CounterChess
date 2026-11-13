@@ -224,6 +224,7 @@ void *acceptClients(void* serverfd) {
 				gameState.gameStarted = true;
 				gameState.isCheckmate = false;
 				gameState.isStalemate = false;
+				gameState.isDraw = false;
 				gameState.isRotated = false;
 				gameState.checkedColor = COLOR_NONE;
 				gameState.currentPlayerIDTurn = 1;
@@ -426,6 +427,7 @@ int main(int argc, char** argv) {
 		if (GuiButton((Rectangle){ GetScreenWidth()-120, FONT_SIZE*26, 100, 40 }, "RESTART GAME")) {
 			gameState.isCheckmate = false;
 			gameState.isStalemate = false;
+			gameState.isDraw = false;
 			gameState.isRotated = false;
 			gameState.checkedColor = COLOR_NONE;
 			gameState.currentPlayerIDTurn = 1;

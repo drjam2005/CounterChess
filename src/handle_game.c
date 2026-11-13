@@ -64,7 +64,7 @@ TWISTS_DONE randomizeBoard(GameState* state, queueServerStruct stru){
 	
 	if(chance < 25){
 		// only 3 pieces can change
-		int num_of_pieces = 3;
+		int num_of_pieces = count_pos < 3 ? count_pos : 3;
 
 		// Fisher-Yates shuffle (ik ik, its quite a 'random' algorithm to use haha)
 		for (int i = count_pos - 1; i > 0; i--) {
@@ -117,7 +117,7 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 
 		if(packet.packetType == PACKET_SEND_MOVE) {
 			if (!gameState->gameStarted || gameState->currentPlayerCount != MAX_PLAYERS ||
-				gameState->isCheckmate || gameState->isStalemate)
+				gameState->isCheckmate || gameState->isStalemate || gameState->isDraw)
 				continue;
 
 			if (packet.chosenStart.x < 0 || packet.chosenStart.x >= 8 ||
@@ -205,6 +205,12 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 								}
 							}
 						}
+						
+						
+						gameState->isDraw = !gameState->isCheckmate && !gameState->isStalemate && ifDraw(gameState->currentChessBoard);
+						bool isDraw = gameState->isDraw;
+						if(isDraw)
+							printf("Draw!!\n");
 
 						swap_turn(gameState);
 					}

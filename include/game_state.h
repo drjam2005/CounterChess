@@ -27,6 +27,7 @@ typedef struct GameState {
 	enum PIECE_COLOR checkedColor;
 	bool isCheckmate;
 	bool isStalemate;
+	bool isDraw;
 	enum PIECE_COLOR stalematedColor;
 } GameState;
 
