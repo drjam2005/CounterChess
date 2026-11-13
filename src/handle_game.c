@@ -36,7 +36,16 @@ void swap_turn(GameState* state) {
 TWISTS_DONE randomizeBoard(GameState* state, queueServerStruct stru){
 	if (state == NULL) return false;
 
-	enum PIECE_TYPE	types[5] = {PIECE_PAWN, PIECE_KNIGHT, PIECE_BISHOP, PIECE_ROOK, PIECE_QUEEN};
+	enum PIECE_TYPE	types[] = {
+		PIECE_PAWN, PIECE_KNIGHT, PIECE_PAWN, PIECE_BISHOP, 
+		PIECE_PAWN, PIECE_BISHOP, PIECE_PAWN, PIECE_KNIGHT,
+		PIECE_BISHOP, PIECE_QUEEN, PIECE_KNIGHT,
+		PIECE_ROOK, PIECE_PAWN, PIECE_ROOK,
+		PIECE_ROOK
+	};
+	
+	int size_types = sizeof(types)/sizeof(types[0]);
+
 	ChessPiece* current_pieces[64];	
 	int count_pos = 0;
 
@@ -54,7 +63,8 @@ TWISTS_DONE randomizeBoard(GameState* state, queueServerStruct stru){
 	int chance = rand() % 100;
 	
 	if(chance < 25){
-		int num_of_pieces = rand() % count_pos + 1;
+		// only 3 pieces can change
+		int num_of_pieces = 3;
 
 		// Fisher-Yates shuffle (ik ik, its quite a 'random' algorithm to use haha)
 		for (int i = count_pos - 1; i > 0; i--) {
@@ -64,12 +74,12 @@ TWISTS_DONE randomizeBoard(GameState* state, queueServerStruct stru){
 			current_pieces[i] = current_pieces[j];
 			current_pieces[j] = temp;
 		}
-
+		
 		for(int i = 0; i < num_of_pieces; i++){
-			enum PIECE_TYPE check_type = types[rand() % 5];
+			enum PIECE_TYPE check_type = types[rand() % size_types];
 
 			while(current_pieces[i]->type == check_type){
-				check_type = types[rand() % 5];
+				check_type = types[rand() % size_types];
 			}
 
 			current_pieces[i]->previousType = current_pieces[i]->type;
