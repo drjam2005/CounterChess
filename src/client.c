@@ -170,6 +170,7 @@ void updateBoard(GameState* gameState);
 
 void render_checkmate_screen(enum PIECE_COLOR clr);
 void render_stalemate_screen();
+void render_draw_screen();
 void get_promotion_piece(PiecePosition position, enum PIECE_COLOR clr);
 
 int handleConnection(const char* port, const char* addr, int* stableSocketFD);
@@ -290,6 +291,9 @@ int main(int argc, char** argv) {
 		if(gameState.isStalemate) {
 			render_stalemate_screen();
 		}
+		if(gameState.isDraw) {
+			render_draw_screen();
+		}
 
 		if(isPromoting) {
 			get_promotion_piece(chosenEnd, myColor);
@@ -366,6 +370,14 @@ void render_stalemate_screen() {
 
 	DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), GetColor(0xFFFFFF55));
 	DrawText("STALEMATE!!! DRAW!!!\n", 100, 100, 40, BLACK);
+
+	return;
+}
+
+void render_draw_screen() {
+
+	DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), GetColor(0xFFFFFF55));
+	DrawText("DRAW!!! INSUFFICIENT MATERIAL!!!\n", 100, 100, 40, BLACK);
 
 	return;
 }
