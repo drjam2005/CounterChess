@@ -26,7 +26,10 @@
 		exit(1); \
 	} while(0)
 
+static int flip_count = 0;
+
 void swap_turn(GameState* state) {
+	printf("there is a new board!\n");
 	if(state->currentColorTurn == COLOR_WHITE)
 		state->currentColorTurn = COLOR_BLACK;
 	else
@@ -211,8 +214,15 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 						bool isDraw = gameState->isDraw;
 						if(isDraw)
 							printf("Draw!!\n");
-
+						
+						flip_count++;
 						swap_turn(gameState);
+						if(flip_count % 2 == 0){
+							enum PIECE_COLOR temp = gameState->playerIDtoColor[1];
+							gameState->playerIDtoColor[1] = gameState->playerIDtoColor[2];
+							gameState->playerIDtoColor[2] = temp;
+							queueGameState(*gameState, stru);
+						}
 					}
 					queueGameState(*gameState, stru);
 				}
