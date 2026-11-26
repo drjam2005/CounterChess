@@ -2,6 +2,7 @@
 #ifndef _PACKET_H
 #define _PACKET_H
 
+#include "chess/chess_piece.h"
 #include "game_state.h"
 
 typedef enum TWISTS_DONE {
@@ -48,6 +49,8 @@ typedef struct fromServerPacket {
 
 	// for history
 	char snapshotMessage[256];
+	int snapshotMoveID;
+	enum PIECE_COLOR snapshotMovecolor;
 }fromServerPacket;
 
 typedef struct fromClientPacket {

@@ -479,7 +479,7 @@ void updateBoard(GameState* gameState) {
 		//	   piece
 		if (getPieceAt(gameState->currentChessBoard, chosenStart).type == PIECE_PAWN) {
 			enum MoveResult result = evaluateMove(&gameState->currentChessBoard, chosenStart, chosenEnd);
-			if(result & MOVE_PROMOTION) {
+			if(result & MOVE_VALID_PROMOTION) {
 				isPromoting = true;
 				promotionOpenedThisFrame = true;
 				return;
@@ -547,8 +547,15 @@ bool handleGameState(GameState* gameState, fromServerPacketQueue* currentServerP
 			gameState->currentPlayerIDTurn = serverPacket.providedPlayerID;
 		if(serverPacket.packetType == PACKET_INFORM_PLAYER_NOT_TURN)
 			printf("Not your turn... dummy...\n");
-		if(serverPacket.packetType == PACKET_INFORM_PLAYER_SNAPSHOT)
-			printf("snapshot: %s\n", serverPacket.snapshotMessage);
+		if(serverPacket.packetType == PACKET_INFORM_PLAYER_SNAPSHOT_MOVE) {
+			printf("move: %d %c: %s\n",
+					serverPacket.snapshotMoveID,
+					serverPacket.snapshotMovecolor  == COLOR_WHITE ? 'W' : 'B',
+					serverPacket.snapshotMessage);
+		}
+		if(serverPacket.packetType == PACKET_INFORM_PLAYER_SNAPSHOT_TWIST) {
+			printf("twists!: %s\n", serverPacket.snapshotMessage);
+		}
  	}
 
 	return true;

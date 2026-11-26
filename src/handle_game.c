@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include "../include/game_state.h"
 #include "../include/handle_game.h"
@@ -29,11 +30,27 @@
 static int flip_count = 0;
 
 void swap_turn(GameState* state) {
-	printf("there is a new board!\n");
 	if(state->currentColorTurn == COLOR_WHITE)
 		state->currentColorTurn = COLOR_BLACK;
 	else
 		state->currentColorTurn = COLOR_WHITE;
+}
+
+char getPieceChar(enum PIECE_TYPE type) {
+	switch(type) {
+		case PIECE_BISHOP:
+			return 'B'; 
+		case PIECE_KING:
+			return 'K'; 
+		case PIECE_KNIGHT:
+			return 'N'; 
+		case PIECE_QUEEN:
+			return 'Q'; 
+		case PIECE_ROOK:
+			return 'R'; 
+		default:
+			return ' '; 
+	}
 }
 
 TWISTS_DONE randomizeBoard(GameState* state, queueServerStruct stru){
@@ -89,10 +106,10 @@ TWISTS_DONE randomizeBoard(GameState* state, queueServerStruct stru){
 			current_pieces[i]->type = check_type;
 		}
 
-		fromServerPacket serverPacket = {0};
-		serverPacket.packetType = PACKET_INFORM_PLAYER_SNAPSHOT;
-		snprintf(serverPacket.snapshotMessage, sizeof serverPacket.snapshotMessage, "TWIST: Some of %s's pieces randomly promoted!", state->currentColorTurn == COLOR_WHITE ? "WHITE" : "BLACK");
-		queueServerPacketAll(serverPacket, *state, stru);
+		// fromServerPacket serverPacket = {0};
+		// serverPacket.packetType = PACKET_INFORM_PLAYER_SNAPSHOT;
+		// snprintf(serverPacket.snapshotMessage, sizeof serverPacket.snapshotMessage, "TWIST: Some of %s's pieces randomly promoted!", state->currentColorTurn == COLOR_WHITE ? "WHITE" : "BLACK");
+		// queueServerPacketAll(serverPacket, *state, stru);
 		return true;
 	}
 	
@@ -106,6 +123,9 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 	while (currentPacketQueue->size > 0) {
 		fromClientPacket packet;
 		char snapshotMessage[256];
+		char chessAlgebraMessage[256];
+		bool isTwisted = false;
+		enum PIECE_COLOR snapshotMoveColor = COLOR_NONE;
 		memset(snapshotMessage, 0, sizeof snapshotMessage);
 
 		if (frontClientPacketQueue(currentPacketQueue, &packet) != 0)
@@ -139,24 +159,59 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 
 				printf("Client (%d): SEND_MOVE (%d %d) -> (%d %d) (NOT THEIR TURN)\n", packet.clientID, packet.chosenStart.x, packet.chosenStart.y, packet.chosenEnd.x, packet.chosenEnd.y);
 			} else {
-				printf("Client (%d): SEND_MOVE (%d %d) -> (%d %d) (THEIR TURN)\n", packet.clientID, packet.chosenStart.x, packet.chosenStart.y, packet.chosenEnd.x, packet.chosenEnd.y);
+				//printf("Client (%d): SEND_MOVE (%d %d) -> (%d %d) (THEIR TURN)\n", packet.clientID, packet.chosenStart.x, packet.chosenStart.y, packet.chosenEnd.x, packet.chosenEnd.y);
 				snprintf(snapshotMessage, sizeof snapshotMessage, "%s (%s): %c%d -> %c%d", (gameState->playerIDtoColor[packet.clientID] == COLOR_WHITE ? "WHITE" : "BLACK"), (TypeToString(getPieceAt(gameState->currentChessBoard, packet.chosenStart).type)), packet.chosenStart.x+'a', 8-packet.chosenStart.y, packet.chosenEnd.x+'a', 8-packet.chosenEnd.y);
-				printf("%s\n", snapshotMessage);
+				// printf("%s\n", snapshotMessage);
 				if (getPieceAt(gameState->currentChessBoard, packet.chosenStart).color != gameState->playerIDtoColor[packet.clientID]) {
 					printf("MOVE INVALID!!!\n");
 				} else {
 					// Apply the move to a copy so an invalid move cannot damage the board.
+					ChessPiece piece = getPieceAt(gameState->currentChessBoard, packet.chosenStart);
 					ChessBoard updatedBoard = gameState->currentChessBoard;
 					enum MoveResult res = movePiece(&updatedBoard, packet.chosenStart, packet.chosenEnd, packet.chosenType);
 					if (res < MOVE_VALID) {
 						printf("MOVE INVALID!!!\n");
 					} else {
 						gameState->currentChessBoard = updatedBoard;
-						printf("MOVE VALID!!!\n");
 						// The next player must be evaluated after the successful move.
 						enum PIECE_COLOR colorToCheck = gameState->currentColorTurn == COLOR_BLACK ? COLOR_WHITE : COLOR_BLACK;
 						bool isWhiteChecked = isKingChecked(gameState->currentChessBoard, COLOR_WHITE);
 						bool isBlackChecked = isKingChecked(gameState->currentChessBoard, COLOR_BLACK);
+						
+						// log their move algebra style
+						snapshotMoveColor = piece.color;
+						char c = getPieceChar(piece.type);
+						printf("C: %c\n", c);
+						if(res & MOVE_VALID_CAPTURE) {
+							if(piece.type == PIECE_PAWN)
+								snprintf(chessAlgebraMessage, sizeof chessAlgebraMessage, "%cx%c%d", packet.chosenStart.x+'a', packet.chosenEnd.x+'a', 8-packet.chosenEnd.y);
+							else
+								snprintf(chessAlgebraMessage, sizeof chessAlgebraMessage, "%cx%c%d", c, packet.chosenEnd.x+'a', 8-packet.chosenEnd.y);
+						} else if(res & MOVE_VALID_CASTLE) {
+							int dist = abs(packet.chosenStart.x - packet.chosenEnd.x);
+							if(dist == 3) {
+								snprintf(chessAlgebraMessage, sizeof chessAlgebraMessage, "0-0");
+							}else if (dist == 4) {
+								snprintf(chessAlgebraMessage, sizeof chessAlgebraMessage, "0-0-0");
+							} else {
+								snprintf(chessAlgebraMessage, sizeof chessAlgebraMessage, "how");
+							}
+						} else if(res & MOVE_VALID_PROMOTION) {
+							snprintf(chessAlgebraMessage, sizeof chessAlgebraMessage, "%c%d=%c", packet.chosenEnd.x+'a', 8-packet.chosenEnd.y, getPieceChar(packet.chosenType));
+						} else {
+							printf("move lang po\n");
+							snprintf(chessAlgebraMessage, sizeof chessAlgebraMessage, "%c%c%d", c, packet.chosenEnd.x+'a', 8-packet.chosenEnd.y);
+						}
+						printf("%s\n", chessAlgebraMessage);
+
+						if(strlen(chessAlgebraMessage)){
+							fromServerPacket serverPacket = {0};
+							serverPacket.packetType = PACKET_INFORM_PLAYER_SNAPSHOT_MOVE;
+							serverPacket.snapshotMovecolor = snapshotMoveColor;
+							serverPacket.snapshotMoveID = packet.clientID;
+							strcpy(serverPacket.snapshotMessage, chessAlgebraMessage);
+							queueServerPacketAll(serverPacket, *gameState, stru);
+						}
 
 						gameState->isCheckmate = false;
 						gameState->isStalemate = false;
@@ -206,6 +261,8 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 									if(isStaleMate)
 										printf("stalemate!!\n");
 								}
+
+								printf("twist!\n");
 							}
 						}
 						
@@ -220,7 +277,16 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 							enum PIECE_COLOR temp = gameState->playerIDtoColor[1];
 							gameState->playerIDtoColor[1] = gameState->playerIDtoColor[2];
 							gameState->playerIDtoColor[2] = temp;
-							queueGameState(*gameState, stru);
+							isTwisted = true;
+							//queueGameState(*gameState, stru);
+
+							//fromServerPacket serverPacket = {0};
+							//serverPacket.packetType = PACKET_INFORM_PLAYER_SNAPSHOT_MOVE;
+							//serverPacket.snapshotMovecolor = snapshotMoveColor;
+							//serverPacket.snapshotMoveID = packet.clientID;
+							//strcpy(serverPacket.snapshotMessage, chessAlgebraMessage);
+							//queueServerPacketAll(serverPacket, *gameState, stru);
+							printf("flip!\n");
 						} else
 							swap_turn(gameState);
 					}
@@ -229,10 +295,11 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 			}
 		}
 
-		if(strlen(snapshotMessage)){
+		
+		if(isTwisted) {
 			fromServerPacket serverPacket = {0};
-			serverPacket.packetType = PACKET_INFORM_PLAYER_SNAPSHOT;
-			strcpy(serverPacket.snapshotMessage, snapshotMessage);
+			serverPacket.packetType = PACKET_INFORM_PLAYER_SNAPSHOT_TWIST;
+			strcpy(serverPacket.snapshotMessage, "some twists po");
 			queueServerPacketAll(serverPacket, *gameState, stru);
 		}
 		

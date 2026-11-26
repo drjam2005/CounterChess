@@ -34,7 +34,7 @@ typedef enum MoveResult {
 	MOVE_VALID_CAPTURE				= (1 << 10),
 	MOVE_VALID_CASTLE				= (1 << 11),
 	MOVE_VALID_CHECK				= (1 << 12),
-	MOVE_PROMOTION					= (1 << 13),
+	MOVE_VALID_PROMOTION					= (1 << 13),
 
 	MOVE_COUNT						= (1 << 14)
 } MoveResult;
