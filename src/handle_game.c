@@ -216,13 +216,13 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 							printf("Draw!!\n");
 						
 						flip_count++;
-						swap_turn(gameState);
-						if(flip_count % 2 == 0){
+						if(flip_count % 2 == 0 && gameState->checkedColor == COLOR_NONE){
 							enum PIECE_COLOR temp = gameState->playerIDtoColor[1];
 							gameState->playerIDtoColor[1] = gameState->playerIDtoColor[2];
 							gameState->playerIDtoColor[2] = temp;
 							queueGameState(*gameState, stru);
-						}
+						} else
+							swap_turn(gameState);
 					}
 					queueGameState(*gameState, stru);
 				}
