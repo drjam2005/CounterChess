@@ -23,6 +23,14 @@ typedef struct RenderMessage {
 	char message[256];
 } RenderMessage;
 
+typedef struct HistoryObject {
+	const char* message;
+	bool isTwist;
+	int moveID;
+	enum PIECE_COLOR moveColor;
+} HistoryObject;
+
 void renderMessages(RenderMessage* messages, int currentIndex, int clientID, int storedMessageCount); 
+void renderHistory(HistoryObject* objects, int historyCount);
 
 #endif // _RENDER_ASSETS_H

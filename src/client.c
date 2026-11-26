@@ -340,6 +340,7 @@ int main(int argc, char** argv) {
 		// 	}
 		// }
 		plug.renderMessages(gameMessages, currentIndex, clientID, storedMessageCount);
+		plug.renderHistory(NULL, 0);
 		EndDrawing();
 	}
 	stopPacketSender();

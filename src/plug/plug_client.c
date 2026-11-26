@@ -56,6 +56,7 @@ void reloadPlugClient(PlugClient* plug){
 		return_error("dlsym: %s\n", dlerror());
 
 	DLSYM(plug, plug->renderMessages, "renderMessages");
+	DLSYM(plug, plug->renderHistory, "renderHistory");
 
 	if (windowReady)
 		plug->loadPieceTextures();
@@ -65,5 +66,6 @@ void reloadPlugClient(PlugClient* plug){
 	plug->unloadPieceTextures = unloadPieceTextures;
 	plug->toBoardPosition = toBoardPosition;
 	plug->renderMessages = renderMessages;
+	plug->renderHistory = renderHistory;
 #endif
 }

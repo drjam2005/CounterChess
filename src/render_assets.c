@@ -365,3 +365,8 @@ void renderMessages(RenderMessage* gameMessages, int currentIndex, int clientID,
 			);
 	free(tempMessages);
 }
+
+void renderHistory(HistoryObject* objects, int historyCount){
+	float yStart = 470;
+	float xStart = 550 + UI_X_OFFSET;
+}

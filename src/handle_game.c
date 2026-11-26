@@ -275,14 +275,6 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 							gameState->playerIDtoColor[1] = gameState->playerIDtoColor[2];
 							gameState->playerIDtoColor[2] = temp;
 							isTwisted = true;
-							//queueGameState(*gameState, stru);
-
-							//fromServerPacket serverPacket = {0};
-							//serverPacket.packetType = PACKET_INFORM_PLAYER_SNAPSHOT_MOVE;
-							//serverPacket.snapshotMovecolor = snapshotMoveColor;
-							//serverPacket.snapshotMoveID = packet.clientID;
-							//strcpy(serverPacket.snapshotMessage, chessAlgebraMessage);
-							//queueServerPacketAll(serverPacket, *gameState, stru);
 							printf("flip!\n");
 						} else
 							swap_turn(gameState);
