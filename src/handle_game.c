@@ -179,7 +179,7 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 						bool isBlackChecked = isKingChecked(gameState->currentChessBoard, COLOR_BLACK);
 						
 						// log their move algebra style
-						snapshotMoveColor = piece.color;
+						snapshotMoveColor = gameState->playerIDtoColor[packet.clientID];
 						char c = getPieceChar(piece.type);
 						if(res & MOVE_VALID_CAPTURE) {
 							if(piece.type == PIECE_PAWN)
@@ -259,6 +259,7 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 										printf("stalemate!!\n");
 								}
 
+								isTwisted = true;
 								printf("twist!\n");
 							}
 						}
@@ -274,7 +275,6 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 							enum PIECE_COLOR temp = gameState->playerIDtoColor[1];
 							gameState->playerIDtoColor[1] = gameState->playerIDtoColor[2];
 							gameState->playerIDtoColor[2] = temp;
-							isTwisted = true;
 							printf("flip!\n");
 						} else
 							swap_turn(gameState);

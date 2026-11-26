@@ -15,7 +15,7 @@ typedef struct PlugClient {
 	void (*loadPieceTextures)(void);
 	void (*unloadPieceTextures)(void);
 	void (*renderMessages)(RenderMessage* messages, int, int, int);
-	void (*renderHistory)(HistoryObject*, int);
+	void (*renderHistory)(HistoryObject*, int, int);
 	struct PiecePosition (*toBoardPosition)(int, int, enum PIECE_COLOR);
 } PlugClient;
 

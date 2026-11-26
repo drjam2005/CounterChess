@@ -1,4 +1,5 @@
 #include <netinet/in.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -65,6 +66,9 @@ bool portEditMode = true;
 RenderMessage gameMessages[256];
 int currentIndex = 0;
 int storedMessageCount = 0;
+
+HistoryObject* history = NULL;
+int storedHistoryCount = 0;
 
 pthread_t packetHandler;
 pthread_t packetSender;
@@ -321,26 +325,8 @@ int main(int argc, char** argv) {
 			}
         }
 
-		// render all messages
-		// float yStart = 460;
-		// float xStart = 550 + UI_X_OFFSET;
-		// int messageCount = storedMessageCount;
-
-		// for (int i = 0; i < 10 && i < messageCount; ++i) {
-		// 	int index = (currentIndex + 255 - i) % 256;
-
-		// 	int messageWidth = MeasureText(gameMessages[index].message, 20);
-
-		// 	if (gameMessages[index].id == clientID) {
-		// 		DrawText(gameMessages[index].message,
-		// 				 xStart + 200 - messageWidth, yStart - (i * 25), 20, GREEN);
-		// 	} else {
-		// 		DrawText(gameMessages[index].message,
-		// 				 xStart, yStart - (i * 25), 20, BLACK);
-		// 	}
-		// }
 		plug.renderMessages(gameMessages, currentIndex, clientID, storedMessageCount);
-		plug.renderHistory(NULL, 0);
+		plug.renderHistory(history, storedHistoryCount, clientID);
 		EndDrawing();
 	}
 	stopPacketSender();
@@ -553,9 +539,24 @@ bool handleGameState(GameState* gameState, fromServerPacketQueue* currentServerP
 					serverPacket.snapshotMoveID,
 					serverPacket.snapshotMovecolor  == COLOR_WHITE ? 'W' : 'B',
 					serverPacket.snapshotMessage);
+
+			history = reallocarray(history, storedHistoryCount+1, sizeof(HistoryObject));
+			history[storedHistoryCount++] = (HistoryObject) {
+				.message = strdup(serverPacket.snapshotMessage),
+				.isTwist = false,
+				.moveColor = serverPacket.snapshotMovecolor,
+				.moveID = serverPacket.snapshotMoveID
+			};
 		}
 		if(serverPacket.packetType == PACKET_INFORM_PLAYER_SNAPSHOT_TWIST) {
 			printf("twists!: %s\n", serverPacket.snapshotMessage);
+			history = reallocarray(history, storedHistoryCount+1, sizeof(HistoryObject));
+			history[storedHistoryCount++] = (HistoryObject) {
+				.message = strdup(serverPacket.snapshotMessage),
+				.isTwist = true,
+				.moveColor = serverPacket.snapshotMovecolor,
+				.moveID = serverPacket.snapshotMoveID
+			};
 		}
  	}
 

@@ -31,6 +31,6 @@ typedef struct HistoryObject {
 } HistoryObject;
 
 void renderMessages(RenderMessage* messages, int currentIndex, int clientID, int storedMessageCount); 
-void renderHistory(HistoryObject* objects, int historyCount);
+void renderHistory(HistoryObject* objects, int historyCount, int clientID);
 
 #endif // _RENDER_ASSETS_H

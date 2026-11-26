@@ -366,7 +366,104 @@ void renderMessages(RenderMessage* gameMessages, int currentIndex, int clientID,
 	free(tempMessages);
 }
 
-void renderHistory(HistoryObject* objects, int historyCount){
-	float yStart = 470;
-	float xStart = 550 + UI_X_OFFSET;
+static bool startsHistoryRow(const HistoryObject* objects, int index, bool isP1) {
+	return index == 0 || isP1 || objects[index].isTwist || objects[index - 1].isTwist;
+}
+
+void renderHistory(HistoryObject* objects, int historyCount, int clientID){
+	static Vector2 scroll = { 0 };
+	static int previousHistoryCount = 0;
+	float squareSize = GetScreenHeight()/10.0f;
+
+	float yStart = squareSize;
+	float xStart = squareSize/2.0f;
+
+	DrawText("P1", xStart + squareSize/2.0f, yStart - squareSize/2.0f, FONT_SIZE, clientID == 1 ? GREEN : BLACK);
+	DrawText("P2", xStart + 2*squareSize, yStart - squareSize/2.0f, FONT_SIZE,    clientID == 2 ? GREEN : BLACK);
+
+	Rectangle listArea = { xStart, yStart, squareSize*3, squareSize*8 };
+	float rowHeight = squareSize/2.0f;
+	int rowCount = 0;
+	size_t turnCount = 0;
+	for(int i = 0; i < historyCount; ++i) {
+		rowCount += startsHistoryRow(objects, i, turnCount % 2 == 0);
+		turnCount += !objects[i].isTwist;
+	}
+
+	int border = GuiGetStyle(DEFAULT, BORDER_WIDTH);
+	float viewHeight = listArea.height - 2*border;
+	float contentHeight = MAX(viewHeight, rowCount * rowHeight);
+	float contentWidth = listArea.width - 2*border;
+	Rectangle view = { xStart + border, yStart + border, contentWidth, viewHeight };
+	bool followLatest = historyCount > previousHistoryCount;
+	previousHistoryCount = historyCount;
+
+	bool hasOverflow = contentHeight > viewHeight;
+	if(hasOverflow) {
+		int scrollbarWidth = GuiGetStyle(LISTVIEW, SCROLLBAR_WIDTH);
+		const int scrollbarGap = 4;
+		Rectangle scrollBounds = listArea;
+		scrollBounds.width += scrollbarWidth + border + scrollbarGap;
+		if(followLatest)
+			scroll.y = -contentHeight;
+
+		bool lockForAppend = followLatest && !GuiIsLocked();
+		if(lockForAppend)
+			GuiLock();
+		// Keep wheel input over the list while drawing only the external scrollbar.
+		BeginScissorMode(listArea.x + listArea.width + scrollbarGap,
+			view.y, scrollbarWidth, view.height);
+		GuiScrollPanel(scrollBounds, NULL, (Rectangle){ 0, 0, contentWidth, contentHeight },
+			&scroll, NULL);
+		EndScissorMode();
+		if(lockForAppend)
+			GuiUnlock();
+	} else {
+		scroll.y = 0;
+	}
+	DrawRectangleRec(view, GRAY);
+	BeginScissorMode(view.x, view.y, view.width, view.height);
+
+	const Color rowColors[] = { DARKGRAY, GRAY };
+	float firstRowY = hasOverflow ? yStart + scroll.y : view.y;
+	int row = -1;
+	turnCount = 0;
+	for(int i = 0; i < historyCount; ++i) {
+		bool isTwist = objects[i].isTwist;
+		bool isP1 = turnCount % 2 == 0;
+		turnCount += !isTwist;
+		bool startsRow = startsHistoryRow(objects, i, isP1);
+		if(startsRow)
+			++row;
+		float rowY = firstRowY + row * rowHeight;
+		if(rowY + rowHeight <= view.y)
+			continue;
+		if(rowY >= view.y + view.height)
+			break;
+		if(startsRow) {
+			Rectangle rowArea = {
+				view.x, rowY, view.width, rowHeight
+			};
+			Color background = isTwist ? ColorBrightness(RED, 0.1f)
+				: rowColors[row % 2];
+			DrawRectangleRec(rowArea, background);
+		}
+
+		if(isTwist) {
+			DrawText("Twist!!!", xStart + squareSize/2.0f, rowY + 5,
+				FONT_SIZE, BLACK);
+			continue;
+		}
+
+		float columnX = xStart + (isP1 ? 0.0f : squareSize*1.5f);
+		if(i == historyCount-1) {
+			DrawRectangleRec((Rectangle){ columnX, rowY, squareSize*1.5f, rowHeight },
+				ColorBrightness(i % 4 == 0 ? DARKBLUE : BLUE, 0.2f));
+		}
+		DrawText(objects[i].message, columnX + squareSize/2.0f, rowY + 5,
+			FONT_SIZE, objects[i].moveColor == COLOR_WHITE ? WHITE : BLACK);
+	}
+	EndScissorMode();
+
+	DrawRectangleLinesEx(listArea, 2.0f, BLACK);
 }
