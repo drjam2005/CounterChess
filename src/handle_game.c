@@ -181,7 +181,6 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 						// log their move algebra style
 						snapshotMoveColor = piece.color;
 						char c = getPieceChar(piece.type);
-						printf("C: %c\n", c);
 						if(res & MOVE_VALID_CAPTURE) {
 							if(piece.type == PIECE_PAWN)
 								snprintf(chessAlgebraMessage, sizeof chessAlgebraMessage, "%cx%c%d", packet.chosenStart.x+'a', packet.chosenEnd.x+'a', 8-packet.chosenEnd.y);
@@ -199,10 +198,8 @@ bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQ
 						} else if(res & MOVE_VALID_PROMOTION) {
 							snprintf(chessAlgebraMessage, sizeof chessAlgebraMessage, "%c%d=%c", packet.chosenEnd.x+'a', 8-packet.chosenEnd.y, getPieceChar(packet.chosenType));
 						} else {
-							printf("move lang po\n");
 							snprintf(chessAlgebraMessage, sizeof chessAlgebraMessage, "%c%c%d", c, packet.chosenEnd.x+'a', 8-packet.chosenEnd.y);
 						}
-						printf("%s\n", chessAlgebraMessage);
 
 						if(strlen(chessAlgebraMessage)){
 							fromServerPacket serverPacket = {0};
