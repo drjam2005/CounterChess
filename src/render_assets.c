@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -12,6 +13,7 @@
 #define UI_X_OFFSET 200
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define FONT_SIZE (20)
 
 struct PiecePosition positions[64];
 int positionsCount = 0;
@@ -64,6 +66,20 @@ struct PiecePosition toBoardPosition(int x, int y, enum PIECE_COLOR playerColor)
 		y = 7 - y;
 	}
 	return (struct PiecePosition){x, y};
+}
+
+typedef struct TimeFormatted {
+	int minutes;
+	int seconds;
+} TimeFormatted;
+
+TimeFormatted FormattedTime(float time) {
+	TimeFormatted formatted;
+
+	formatted.minutes = floor(time / 60.0f);
+	formatted.seconds = time - (60*formatted.minutes);
+
+	return formatted;
 }
 
 void renderBoard(const struct GameState gameState, struct RenderInfo info) {
@@ -183,6 +199,52 @@ void renderBoard(const struct GameState gameState, struct RenderInfo info) {
 	}
 	for(int y = 0; y < 8; ++y) {
 		DrawText(TextFormat("%d", info.playerColor == COLOR_WHITE ? 1+y : 8-y), BOARD_X_OFFSET + squareSize/2.0f, squareSize+squareSize/2.0f+(squareSize*(7-y))-5, 20, BLACK);
+	}
+
+	TimeFormatted p1Time = FormattedTime(gameState.player1TimeLeft);
+	TimeFormatted p2Time = FormattedTime(gameState.player2TimeLeft);
+	const char* p1Formatted = TextFormat("P1: %d:%02d", p1Time.minutes, p1Time.seconds);
+	const char* p2Formatted = TextFormat("P2: %d:%02d", p2Time.minutes, p2Time.seconds);
+
+	xStart = squareSize + BOARD_X_OFFSET, yStart = squareSize;
+	Rectangle time1 = {
+		xStart + squareSize*8.2,
+		yStart - FONT_SIZE*1.75f,
+		90,
+		FONT_SIZE*1.4
+	};
+	Rectangle time2 = {
+		xStart + squareSize*10.625,
+		yStart - FONT_SIZE*1.75f,
+		90,
+		FONT_SIZE*1.4
+	};
+	DrawRectangleRec(time1, gameState.playerIDtoColor[info.clientID] != gameState.currentColorTurn ? LIGHTGRAY : DARKGRAY);
+	DrawRectangleRec(time2, gameState.playerIDtoColor[info.clientID] == gameState.currentColorTurn ? LIGHTGRAY : DARKGRAY);
+	DrawRectangleLinesEx(time1, 2.0f, BLACK);
+	DrawRectangleLinesEx(time2, 2.0f, BLACK);
+	if(info.clientID == 1) {
+		DrawText(p2Formatted,
+				xStart + squareSize*8.3,
+				yStart - FONT_SIZE*1.5f,
+				FONT_SIZE,
+				BLACK);
+		DrawText(p1Formatted,
+				xStart + squareSize*10.75,
+				yStart - FONT_SIZE*1.5f,
+				FONT_SIZE,
+				BLACK);
+	} else {
+		DrawText(p1Formatted,
+				xStart + squareSize*8.3,
+				yStart - FONT_SIZE*1.5f,
+				FONT_SIZE,
+				BLACK);
+		DrawText(p2Formatted,
+				xStart + squareSize*10.75,
+				yStart - FONT_SIZE*1.5f,
+				FONT_SIZE,
+				BLACK);
 	}
 }
 
@@ -320,7 +382,6 @@ void renderMessages(RenderMessage* gameMessages, int currentIndex, int clientID,
 
 
 
-#define FONT_SIZE (20)
 
 	//DrawText("hehehehehehehehehe", xStart-UI_X_OFFSET, squareSize*4, FONT_SIZE, RED);
 //fitMessage(const char* message, int font_size, float maxWidth, float* resultingHeight) {

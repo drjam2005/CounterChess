@@ -10,6 +10,7 @@
 typedef struct RenderInfo {
 	struct PiecePosition chosenStart;
 	enum PIECE_COLOR playerColor;
+	int clientID;
 	bool isPromoting;
 } RenderInfo;
 

@@ -1,3 +1,4 @@
+#include <math.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <sys/types.h>
@@ -230,6 +231,8 @@ void *acceptClients(void* serverfd) {
 				gameState.currentPlayerIDTurn = 1;
 				gameState.currentColorTurn = COLOR_WHITE;
 				gameState.currentChessBoard = standardBoard;
+				gameState.player1TimeLeft = 300.0f;
+				gameState.player2TimeLeft = 300.0f;
 			}
 			GameState stateSnapshot = gameState;
 
@@ -283,6 +286,20 @@ void *acceptClients(void* serverfd) {
 		pthread_detach(clientThread);
 	}
 	return NULL;
+}
+
+typedef struct TimeFormatted {
+	int minutes;
+	int seconds;
+} TimeFormatted;
+
+TimeFormatted FormattedTime(float time) {
+	TimeFormatted formatted;
+
+	formatted.minutes = floor(time / 60.0f);
+	formatted.seconds = time - (60*formatted.minutes);
+
+	return formatted;
 }
 
 int main(int argc, char** argv) {
@@ -407,7 +424,8 @@ int main(int argc, char** argv) {
 		pthread_mutex_unlock(&clientPacketQueueMutex);
 
 		DrawText("Client Packet Logs:", 20, FONT_SIZE*3.5f, FONT_SIZE, BLACK);
-		DrawRectangle(20, FONT_SIZE*5, GetScreenWidth()-40, FONT_SIZE*20, GRAY);
+		Rectangle area = { 20, FONT_SIZE*5, GetScreenWidth()-40, FONT_SIZE*20 };
+		DrawRectangleRec(area, GRAY);
 		for (size_t packetIndex = 0; packetIndex < recentCount; ++packetIndex) {
 			fromClientPacket* packet = &recentPackets[packetIndex];
 			const char* packet_type = "UNKNOWN PACKET";
@@ -435,6 +453,24 @@ int main(int argc, char** argv) {
 			gameState.currentChessBoard = standardBoard;
 			queueGameState(gameState, stru);
 		}
+
+		TimeFormatted p1Time = FormattedTime(gameState.player1TimeLeft);
+		TimeFormatted p2Time = FormattedTime(gameState.player2TimeLeft);
+		const char* p1Formatted = TextFormat("P1: %d:%02d", p1Time.minutes, p1Time.seconds);
+		const char* p2Formatted = TextFormat("P2: %d:%02d", p2Time.minutes, p2Time.seconds);
+		float p1Len = MeasureText(p1Formatted, FONT_SIZE);
+		float p2Len = MeasureText(p1Formatted, FONT_SIZE);
+		DrawText(p1Formatted,
+				area.width - p1Len,
+				area.y - FONT_SIZE*1.5f,
+				FONT_SIZE,
+				BLACK);
+		DrawText(p2Formatted,
+				area.width - p2Len,
+				area.y - FONT_SIZE*3.0f,
+				FONT_SIZE,
+				BLACK);
+
 		EndDrawing();
 	}
 
@@ -532,5 +568,3 @@ void randomizePieces(GameState* state){
 
 	return;
 }
-
-

@@ -20,6 +20,9 @@ typedef struct GameState {
 	int currentPlayerIDTurn;
 	enum PIECE_COLOR currentColorTurn;
 
+	// time stuff
+	float player1TimeLeft;
+	float player2TimeLeft;
 
 	// chessBoard
 	struct ChessBoard currentChessBoard;

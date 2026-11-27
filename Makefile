@@ -68,10 +68,10 @@ endif
 ./build/helpers.o: ./src/helpers.c ./include/* | ./build/
 	gcc $(COMPILEFLAGS) -c ./src/helpers.c -o ./build/helpers.o
 
-./build/packets.o: ./src/packets.c ./include/packets.h ./include/packet_handler.h | ./build/
+./build/packets.o: ./src/packets.c ./include/packets.h ./include/packet_handler.h ./include/my_structs.h ./include/game_state.h | ./build/
 	gcc $(COMPILEFLAGS) -c ./src/packets.c -o ./build/packets.o
 
-./build/my_structs.o: ./src/my_structs.c ./include/my_structs.h ./include/packets.h | ./build/
+./build/my_structs.o: ./src/my_structs.c ./include/my_structs.h ./include/packets.h ./include/game_state.h | ./build/
 	gcc $(COMPILEFLAGS) -c ./src/my_structs.c -o ./build/my_structs.o
 
 ./build/chessMain: ./build/chessMain.o ./build/chess_moves.o ./build/chess_board.o

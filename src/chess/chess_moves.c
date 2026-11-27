@@ -164,7 +164,7 @@ enum MoveResult isValidPawnMove(const ChessBoard board, PiecePosition start, Pie
         if (!fromKing && !isMoveSafe(board, start, end))
             return MOVE_INVALID_CHECK;
 
-        return promotes ? MOVE_PROMOTION : MOVE_VALID_MOVE;
+        return promotes ? MOVE_VALID_PROMOTION : MOVE_VALID_MOVE;
     }
 
     if (dx == 0 && dy == 2 * direction) {
@@ -196,7 +196,7 @@ enum MoveResult isValidPawnMove(const ChessBoard board, PiecePosition start, Pie
                 if (isKingChecked(tempBoard, pawn.color))
                     return MOVE_INVALID_CHECK;
             }
-            return promotes ? (MOVE_VALID_CAPTURE | MOVE_PROMOTION) : MOVE_VALID_CAPTURE;
+            return promotes ? (MOVE_VALID_CAPTURE | MOVE_VALID_PROMOTION) : MOVE_VALID_CAPTURE;
         }
 
         if (target.color == pawn.color)
@@ -205,7 +205,7 @@ enum MoveResult isValidPawnMove(const ChessBoard board, PiecePosition start, Pie
         if (!fromKing && !isCaptureSafe(board, start, end))
             return MOVE_INVALID_CHECK;
 
-        return promotes ? (MOVE_VALID_CAPTURE | MOVE_PROMOTION) : MOVE_VALID_CAPTURE;
+        return promotes ? (MOVE_VALID_CAPTURE | MOVE_VALID_PROMOTION) : MOVE_VALID_CAPTURE;
     }
 
     return MOVE_INVALID_OUT_OF_PIECE_RANGE;

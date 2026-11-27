@@ -120,6 +120,12 @@ TWISTS_DONE randomizeBoard(GameState* state, queueServerStruct stru){
 bool handleGameState(GameState* gameState, fromClientPacketQueue* currentPacketQueue, struct GameInfo gameInfo, queueServerStruct stru) {
 	// handle game loop
 	// PACKET HANDLING
+	if(gameState->playerIDtoColor[1] == gameState->currentColorTurn) {
+		gameState->player1TimeLeft -= GetFrameTime();
+	} else if(gameState->playerIDtoColor[2] == gameState->currentColorTurn) {
+		gameState->player2TimeLeft -= GetFrameTime();
+	}
+
 	while (currentPacketQueue->size > 0) {
 		fromClientPacket packet;
 		char snapshotMessage[256];

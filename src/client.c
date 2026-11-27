@@ -209,6 +209,10 @@ int main(int argc, char** argv) {
 		if(IsKeyPressed(KEY_R) && IsKeyDown(KEY_LEFT_CONTROL)) {
 			reloadPlugClient(&plug);
 		}
+		if(gameState.playerIDtoColor[1] == gameState.currentColorTurn) {
+			gameState.player1TimeLeft -= GetFrameTime();
+		} else 
+			gameState.player2TimeLeft -= GetFrameTime();
 
 		if(!argumentsProvided) {
 			BeginDrawing();
@@ -280,7 +284,8 @@ int main(int argc, char** argv) {
 		struct RenderInfo info = {
 			.chosenStart = chosenStart,
 			.playerColor = myColor,
-			.isPromoting = isPromoting
+			.isPromoting = isPromoting,
+			.clientID = clientID
 		};
 
 		if (gameState.gameStarted) 
